@@ -174,6 +174,59 @@ def get_video_list(request):
         } for video in video_list ]
     })
 
+def load_video_list(request):
+    # 本函数仅在修改实验设置时使用，用于完全重置数据库视频设置
+    import os
+    import csv
+    video_url_list = []
+    for path,dir_list,file_list in os.walk(r"/home/www/res/video"):
+        #print (file_list)
+        for file_name in file_list: 
+            #print(os.path.join(path, file_name) )
+            id = int(file_name.split("/")[-1].split("_")[0].replace("video",""))
+            #print(id)
+            video_url_list.append({"id":id,"url":"/video/"+file_name})
+    # 读取config.csv,根据ID读取视频
+    reader = csv.reader(open(r"/home/www/res/config.csv", "r"))
+    id_col = 0
+    title_col = 1
+    desc_col = 2
+    video_info_list = []
+    for item in reader:
+        if reader.line_num == 1:
+            print(item)
+            id_col = item.index("id")
+            title_col = item.index("title")
+            desc_col = item.index("description")
+            continue
+        try:
+            id = int(item[id_col])
+        except: continue
+        video_info_list.append({
+            "id":id,
+            "title":item[title_col],
+            "description":item[desc_col],
+        })
+    # 将视频数据逐个在config中查询，最后取视频文件和视频信息都存在的视频作为最终结果（交集）
+    for video_url in video_url_list:
+        id = video_url["id"]
+        for video_info in video_info_list:
+            if video_info["id"] == id:
+                try: video = Video.objects.get(id=id)
+                except: 
+                    video = Video()
+                    video.video_id = video_info["id"]
+                video.title = video_info["title"]
+                video.url = video_url["url"]
+                #video.cover_url = body_dict.get("cover_url")
+                #video.svi_raw = ' '.join([ str(i) for i in body_dict.get("svi_raw")])
+                #video.created_time = datetime.datetime.now()
+                video.description = video_info["description"]
+                video.save()
+                print("added video, id=", id)
+
+    return JsonResponse({})
+
 @require_http_methods(["GET"])
 def get_tagged_video_list(request):
     return JsonResponse({

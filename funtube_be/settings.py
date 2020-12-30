@@ -36,7 +36,6 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     'api.apps.ApiConfig',
-    'api2.apps.Api2Config',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',

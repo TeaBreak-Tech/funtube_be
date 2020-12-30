@@ -18,14 +18,13 @@ class PrintableModel(models.Model):
         abstract = True
 
 class Video(PrintableModel):
-    video_id = models.CharField(max_length=100, primary_key=True)
+    video_id = models.IntegerField(primary_key=True)
     title = models.CharField(max_length=100 )
     url = models.CharField(max_length=200 )
     cover_url = models.CharField(max_length=200 )
     svi_raw = models.TextField()
-    created_time = models.DateTimeField(auto_now_add=True)
+    created_time = models.DateTimeField(auto_now=True)
     description = models.TextField()
-    client = models.IntegerField()
 
 class Visitor(PrintableModel):
     visitor_id = models.CharField(max_length=100, primary_key=True)
