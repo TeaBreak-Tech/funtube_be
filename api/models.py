@@ -25,6 +25,12 @@ class Video(PrintableModel):
     svi_raw = models.TextField()
     created_time = models.DateTimeField(auto_now=True)
     description = models.TextField()
+    client = models.IntegerField(default=0) # 0 for webpage, 1 for plugin player
+    ad = models.TextField(default="[]")
+    
+class Ad(PrintableModel):
+    ad_id = models.IntegerField(primary_key=True)
+    url = models.CharField(max_length=200)
 
 class Visitor(PrintableModel):
     visitor_id = models.CharField(max_length=100, primary_key=True)

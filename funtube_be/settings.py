@@ -81,14 +81,16 @@ WSGI_APPLICATION = 'funtube_be.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'USER': 'funtube',
-        'NAME': 'funtube',
-        'PASSWORD': '111',
+        'USER': 'user_name',
+        'NAME': 'database_name',
+        'PASSWORD': 'your_password',
         'HOST': 'localhost',
         'PORT': '3306',
     }
 }
 
+try: from .settings_local import *
+except: pass
 
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
