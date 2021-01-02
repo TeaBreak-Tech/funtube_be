@@ -5,6 +5,7 @@ from . import views
 urlpatterns = [
     path('', views.index, name='index'),
     path('session', views.new_session),
+    path('logout', views.logout),
     path('video/', views.add_video),
     path('video/list', views.get_video_list),
     path('video/load', views.load_video_list),

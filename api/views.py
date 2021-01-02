@@ -30,20 +30,21 @@ def load_video_list(request):
             id = int(file_name.split("/")[-1].split("_")[0].replace("video",""))
             #print(id)
             video_url_list.append({"id":id,"url":"/video/"+file_name})
-    # 读取config.csv,根据ID读取视频
-    reader = csv.reader(open(r"/home/www/res/config.csv", "r"))
+    
+    # 读取video.csv,根据ID读取视频
+    reader = csv.reader(open(r"/home/www/res/video.csv", "r",encoding="utf8"))
     id_col = 0
     title_col = 1
     desc_col = 2
     video_info_list = []
-    ad_col = 3
+    #ad_col = 3
     for item in reader:
         if reader.line_num == 1:
             print(item)
             id_col = item.index("id")
             title_col = item.index("title")
             desc_col = item.index("description")
-            ad_col = item.index("ad")
+            #ad_col = item.index("ad1")
             continue
         try:
             id = int(item[id_col])
@@ -52,8 +53,32 @@ def load_video_list(request):
             "id":id,
             "title":item[title_col],
             "description":item[desc_col],
-            "ad":item[ad_col]
+            #"ad":item[ad_col]
         })
+
+    ad_config_list = []
+    # 读取 config.csv 为每个视频添加几种广告配置
+    reader2 = csv.reader(open(r"/home/www/res/config.csv", "r",encoding="utf8"))
+    video_id_col = 0
+    config_num_col = 1
+    config_col = 2
+    for item in reader2:
+        item = [ entry.replace(" ","").replace("\t","") for entry in item ]
+        if reader2.line_num == 1:
+            try:video_id_col = item.index("video_id")
+            except: pass
+            config_num_col = item.index("config_num")
+            config_col = item.index("config")
+            continue
+        try:
+            video_id = int(item[video_id_col])
+        except: continue
+        ad_config_list.append({
+            "video_id":video_id,
+            "config_num":item[config_num_col],
+            "config":item[config_col],
+        })
+
     # 将视频数据逐个在config中查询，最后取视频文件和视频信息都存在的视频作为最终结果（交集）
     for video_url in video_url_list:
         id = video_url["id"]
@@ -69,9 +94,18 @@ def load_video_list(request):
                 #video.svi_raw = ' '.join([ str(i) for i in body_dict.get("svi_raw")])
                 #video.created_time = datetime.datetime.now()
                 video.description = video_info["description"]
-                video.ad = video_info["ad"]
+                #video.ad = video_info["ad"]
                 video.save()
-                print("added video, id=", id)
+                for ad_config_info in ad_config_list:
+                    if id==ad_config_info["video_id"]:
+                        try: ad_config = AdConfig.objects.get(video = video,config_num = ad_config_info["config_num"])
+                        except: ad_config = AdConfig()
+                        ad_config.video = video
+                        ad_config.config_num = ad_config_info["config_num"]
+                        ad_config.config = ad_config_info["config"]
+                        ad_config.save()
+                print("added video, id =", id,"title =", video.title)
+    
     # 加载全部广告信息
     for path,dir_list,file_list in os.walk(r"/home/www/res/ad"):
         #print (file_list)
@@ -118,13 +152,14 @@ def new_session(request):
     except:
         # 如果有pid但没有对应用户，或者没有pid并且visitor_id也不对应用户，那么创建用户
         token = token_urlsafe(TOKEN_LENGTH)
-        visitor_id = uuid.uuid4()
-        create_time = time.time()
-        # 无论新用户来自哪个来源,都要随机给该用户分配一个问卷专用的视频
+        # 无论新用户来自哪个来源,都要给该用户分配一个问卷专用的视频
         #video_list = Video.objects.filter(client=0)
         video = Video.objects.get(pk=1)
         visitor = Visitor()
-        visitor.visitor_id = visitor_id
+        #visitor.visitor_id = visitor_id
+        # 无论新用户来自哪个来源,都要给该用户分配一个广告配置版本 1/2/3/4
+        visitor.save()
+        visitor.config_num = visitor.visitor_id%4 + 1
         visitor.token = token
         #visitor.video = video
         visitor.pid = pid
@@ -154,15 +189,19 @@ def new_session(request):
             except: return HttpResponse(status=404)
     # 现在确保有了 visitor 对象和 video 对象
     session = Session()
-    session_id = uuid.uuid4()
-    session.session_id = session_id
+    #session_id = uuid.uuid4()
+    #session.session_id = session_id
     session.visitor = visitor
     session.video = video # 给当前 session 赋予同样的 video
     session.pid = pid
     session.player_type = player_type
     session.save()
-    if video.ad: ads = video.ad
-    else: ads = "{}"
+    print(video,visitor.config_num)
+    try:
+        ads = AdConfig.objects.get(video=video,config_num=visitor.config_num).config
+        print (ads)
+    except:
+        ads = "[]"
     ads = json.loads(ads)
     for ad_info in ads:
         ad = Ad.objects.get(ad_id=ad_info["ad_id"])
@@ -170,7 +209,7 @@ def new_session(request):
     response = JsonResponse({
         "is_new_visitor":is_new_visitor,
         "visitor_id":visitor.visitor_id,
-        "session_id":session_id,
+        "session_id":session.session_id,
         "create_time":visitor.created_time,
         "videos":[{
             "video_id": video.video_id,
@@ -180,12 +219,20 @@ def new_session(request):
             #"svi_raw": [float(i) for i in video.svi_raw.split(' ')],
             "created_time": video.created_time,
             "description":video.description,
-            "ads":ads
-        } for video in [video] ]
+            "ads":ads,
+        } for video in [video] ],
+        "config_num":visitor.config_num,
     })
     response.set_cookie("token", visitor.token)
     response.set_cookie("visitor_id", visitor.visitor_id)
     return response
+
+def logout(request):
+    response = HttpResponse("video add success")
+    response.set_cookie("token", None)
+    response.set_cookie("visitor_id", None)
+    return response
+
 
 @require_http_methods(["POST"])
 def add_video(request):
@@ -216,8 +263,8 @@ def new_event(request):
         try: visitor = Visitor.objects.get(pk=visitor_id)
         except: return HttpResponse("visitor DNE",status=401)
     event = Event()
-    event_id = uuid.uuid4()
-    event.event_id = event_id
+    #event_id = uuid.uuid4()
+    #event.event_id = event_id
     session_id = body_dict.get("session_id")
     print(session_id)
     try: session = Session.objects.get(pk=session_id)

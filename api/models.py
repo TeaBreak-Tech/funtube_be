@@ -26,21 +26,27 @@ class Video(PrintableModel):
     created_time = models.DateTimeField(auto_now=True)
     description = models.TextField()
     client = models.IntegerField(default=0) # 0 for webpage, 1 for plugin player
-    ad = models.TextField(default="[]")
     
 class Ad(PrintableModel):
     ad_id = models.IntegerField(primary_key=True)
     url = models.CharField(max_length=200)
 
+class AdConfig(PrintableModel):
+    ad_config_id = models.AutoField(primary_key=True)
+    video = models.ForeignKey(Video, on_delete=models.SET_NULL, null=True, db_column="video")
+    config_num = models.IntegerField(default=1)
+    config = models.TextField(default="[]")
+
 class Visitor(PrintableModel):
-    visitor_id = models.CharField(max_length=100, primary_key=True)
+    visitor_id = models.AutoField(primary_key=True)
     token = models.CharField(max_length=100, unique=True)
     created_time = models.DateTimeField(auto_now_add=True)
     video = models.ForeignKey(Video, on_delete=models.SET_NULL, null=True, db_column="video")
     pid = models.CharField(max_length=100, unique=True, null=True)
+    config_num = models.IntegerField(default=1)
 
 class Session(PrintableModel):
-    session_id = models.CharField(max_length=100, primary_key=True)
+    session_id = models.AutoField(primary_key=True)
     visitor = models.ForeignKey(Visitor, on_delete=models.SET_NULL, null=True, db_column="visitor")
     video = models.ForeignKey(Video, on_delete=models.SET_NULL, null=True, db_column="video")
     start_time = models.DateTimeField(auto_now_add=True)
@@ -48,7 +54,7 @@ class Session(PrintableModel):
     player_type = models.IntegerField(null=True)
 
 class Event(PrintableModel):
-    event_id = models.CharField(max_length=100, primary_key=True)
+    event_id = models.AutoField(primary_key=True)
     session = models.ForeignKey(Session, on_delete=models.SET_NULL, null=True, db_column="session")
     label = models.CharField(max_length=30)
     description = models.CharField(max_length=100)

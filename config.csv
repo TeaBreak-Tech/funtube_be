@@ -1,0 +1,7 @@
+﻿video_id ,config_num ,config
+1        ,1          ,"[{""ad_id"":1,""time"":20,""url"":""https://www.tea-break.cn""},{""ad_id"":5,""time"":100,""url"":""https://www.baidu.com""}]"
+1        ,2          ,"[{""ad_id"":1,""time"":15,""url"":""https://www.tea-break.cn""},{""ad_id"":5,""time"":200,""url"":""https://www.baidu.com""},{""ad_id"":19,""time"":300,""url"":""https://github.com""}]"
+1        ,3          ,"[{""ad_id"":1,""time"":15,""url"":""https://www.tea-break.cn""},{""ad_id"":5,""time"":200,""url"":""https://www.baidu.com""},{""ad_id"":19,""time"":300,""url"":""https://github.com""}]"
+1        ,4          ,"[{""ad_id"":1,""time"":15,""url"":""https://www.tea-break.cn""},{""ad_id"":5,""time"":200,""url"":""https://www.baidu.com""},{""ad_id"":19,""time"":300,""url"":""https://github.com""}]"
+2        ,1          ,"[{""ad_id"":1,""time"":20,""url"":""https://www.tea-break.cn""},{""ad_id"":5,""time"":100,""url"":""https://www.baidu.com""}]"
+2        ,2          ,"[{""ad_id"":1,""time"":15,""url"":""https://www.tea-break.cn""},{""ad_id"":5,""time"":200,""url"":""https://www.baidu.com""},{""ad_id"":19,""time"":300,""url"":""https://github.com""}]"
