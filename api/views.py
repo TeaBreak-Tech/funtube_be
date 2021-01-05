@@ -4,6 +4,8 @@ from secrets import token_urlsafe
 from django.views.decorators.http import require_http_methods
 from .models import *
 from django.forms.models import model_to_dict
+from django.utils import timezone
+
 import datetime
 import random
 import uuid
@@ -35,7 +37,8 @@ def load_video_list(request):
     reader = csv.reader(open(r"/home/www/res/video.csv", "r",encoding="utf8"))
     id_col = 0
     title_col = 1
-    desc_col = 2
+    cat_col = 2
+    tag_col = 3
     video_info_list = []
     #ad_col = 3
     for item in reader:
@@ -43,7 +46,8 @@ def load_video_list(request):
             print(item)
             id_col = item.index("id")
             title_col = item.index("title")
-            desc_col = item.index("description")
+            cat_col = item.index("categories")
+            tag_col = item.index("tags")
             #ad_col = item.index("ad1")
             continue
         try:
@@ -52,8 +56,8 @@ def load_video_list(request):
         video_info_list.append({
             "id":id,
             "title":item[title_col],
-            "description":item[desc_col],
-            #"ad":item[ad_col]
+            "cat":item[cat_col].split(" "),
+            "tag":item[tag_col].split(" "),
         })
 
     ad_config_list = []
@@ -90,12 +94,31 @@ def load_video_list(request):
                     video.video_id = video_info["id"]
                 video.title = video_info["title"]
                 video.url = video_url["url"]
-                #video.cover_url = body_dict.get("cover_url")
-                #video.svi_raw = ' '.join([ str(i) for i in body_dict.get("svi_raw")])
-                #video.created_time = datetime.datetime.now()
-                video.description = video_info["description"]
-                #video.ad = video_info["ad"]
+                video.cover_url = "/poster/poster_"+str(id)+".jpg"
                 video.save()
+                
+                for cat_title in video_info["cat"]:
+                    try: cat = Cat.objects.get(cat_title=cat_title)
+                    except:
+                        cat = Cat()
+                        cat.cat_title = cat_title
+                        cat.save()
+                    video_cat = Video_cat()
+                    video_cat.video = video
+                    video_cat.cat = cat
+                    video_cat.save()
+                
+                for tag_title in video_info["tag"]:
+                    try: tag = Tag.objects.get(tag_title=tag_title)
+                    except:
+                        tag = Tag()
+                        tag.tag_title = tag_title
+                        tag.save()
+                    video_tag = Video_tag()
+                    video_tag.video = video
+                    video_tag.tag = tag
+                    video_tag.save()
+
                 for ad_config_info in ad_config_list:
                     if id==ad_config_info["video_id"]:
                         try: ad_config = AdConfig.objects.get(video = video,config_num = ad_config_info["config_num"])
@@ -266,19 +289,24 @@ def new_event(request):
     #event_id = uuid.uuid4()
     #event.event_id = event_id
     session_id = body_dict.get("session_id")
+    video_info = body_dict.get("video_info")
+    buffered = body_dict.get("buffered",0)
+    try: buffered = int(buffered)
+    except: buffered = 0
     print(session_id)
     try: session = Session.objects.get(pk=session_id)
     except: return HttpResponse("session DNE",status=402)
     event.session = session
+    event.video_info = video_info
     event.label = body_dict.get("label")
     event.description = body_dict.get("description")
     raw_timestamp = body_dict.get("timestamp")
-    print(raw_timestamp/1000)
-    timestamp = datetime.datetime.fromtimestamp(float(raw_timestamp/1000))
+    print ("\n\n",video_info,"\n\n")
+    timestamp = timezone.now()#timezone.fromtimestamp(float(raw_timestamp/1000))
     event.timestamp = timestamp
     event.video_time = float(body_dict.get("video_time"))
     event.volume = float(body_dict.get("volume"))
-    event.buffered = int(body_dict.get("buffered"))
+    event.buffered = buffered
     event.playback_rate = float(body_dict.get("playback_rate"))
     event.full_page = bool(body_dict.get("full_page"))
     event.full_screen = bool(body_dict.get("full_screen"))
@@ -349,18 +377,37 @@ def get_tagged_video_list(request):
     })
 
 @require_http_methods(["GET"])
-def get_video_by_tag(request,tag_title):
-    return JsonResponse({
-        "videos":[{
-            "video_id": video_tag.video.video_id,
-            "title": video_tag.video.title,
-            "url": video_tag.video.url,
-            "cover_url": video_tag.video.cover_url,
-            "svi_raw": [float(i) for i in video_tag.video.svi_raw.split(' ')],
-            "created_time": video_tag.video.created_time,
-            "description": video_tag.video.description,
-        }for video_tag in list( filter( lambda video_tag:video_tag.tag.tag_title==tag_title, list(Video_tag.objects.all()) ) )]
-    })
+def get_video_by_tag(request,cat_id):
+    try:cat_id = int(cat_id)
+    except: cat_id = 0
+    if cat_id!=0:
+        cat = Cat.objects.get(cat_id=cat_id)
+        return JsonResponse({
+            "title":cat.cat_title,
+            "videos":[{
+                "video_id": video_cat.video.video_id,
+                "title": video_cat.video.title,
+                "url": video_cat.video.url,
+                "cover_url": video_cat.video.cover_url,
+                #"svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
+                "created_time": video_cat.video.created_time,
+                "description": video_cat.video.description,
+            }for video_cat in Video_cat.objects.filter(cat_id=cat_id) ]
+        })
+    else:
+        return JsonResponse({
+            "title":"全部视频",
+            "videos":[{
+                "video_id": video.video_id,
+                "title": video.title,
+                "url": video.url,
+                "cover_url": video.cover_url,
+                #"svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
+                "created_time": video.created_time,
+                "description": video.description,
+            }for video in Video.objects.all() ]
+        })
+
 
 @require_http_methods(["POST"])
 def add_video_tag(request):
@@ -383,3 +430,36 @@ def add_video_tag(request):
         video_tag.save()
     return HttpResponse("Save successfully")
 
+def getSuggestion(request):
+    video_id = request.GET.get("vid",None)
+    video_list = list(Video.objects.all())
+    for video in video_list:
+        if str(video.video_id) == video_id:
+            video_list.remove(video)
+
+    #video_list = random.sample(video_list,4)
+
+    result = [{
+        "video_id": video.video_id,
+        "title": video.title,
+        "url": video.url,
+        "cover_url": video.cover_url,
+        #"svi_raw": [float(i) for i in video.svi_raw.split(' ')],
+        "created_time": video.created_time,
+        "description":video.description,
+    } for video in video_list ]
+
+    return JsonResponse({
+        "result":result
+    })
+
+def getCategories(request):
+    cat_list = Cat.objects.all()
+    result = [{
+        "cat_id":cat.cat_id,
+        "cat_title":cat.cat_title,
+    } for cat in cat_list]
+    
+    return JsonResponse({
+        "result":result,
+    })

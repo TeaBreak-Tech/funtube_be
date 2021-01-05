@@ -57,6 +57,7 @@ class Event(PrintableModel):
     event_id = models.AutoField(primary_key=True)
     session = models.ForeignKey(Session, on_delete=models.SET_NULL, null=True, db_column="session")
     label = models.CharField(max_length=30)
+    video_info = models.CharField(max_length=30,default=None)
     description = models.CharField(max_length=100)
     timestamp = models.DateTimeField()
     video_time = models.DecimalField( max_digits=12, decimal_places=6)
@@ -69,10 +70,19 @@ class Event(PrintableModel):
     player_width = models.IntegerField()
 
 class Tag(PrintableModel):
-    tag_id = models.CharField(max_length=100, primary_key=True)
+    tag_id = models.AutoField(primary_key=True)
     tag_title = models.CharField(max_length=100)
 
 class Video_tag(PrintableModel):
-    video_tag_id = models.CharField(max_length=100, primary_key=True)
+    video_tag_id = models.AutoField(primary_key=True)
     video = models.ForeignKey(Video, on_delete=models.SET_NULL, null=True, db_column="video")
     tag = models.ForeignKey(Tag, on_delete=models.SET_NULL, null=True, db_column="tag")
+
+class Cat(PrintableModel):
+    cat_id = models.AutoField(primary_key=True)
+    cat_title = models.CharField(max_length=100)
+
+class Video_cat(PrintableModel):
+    video_cat_id = models.AutoField(primary_key=True)
+    video = models.ForeignKey(Video, on_delete=models.SET_NULL, null=True, db_column="video")
+    cat = models.ForeignKey(Cat, on_delete=models.SET_NULL, null=True, db_column="cat")
