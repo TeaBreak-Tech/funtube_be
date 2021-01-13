@@ -43,7 +43,7 @@ def load_video_list(request):
     #ad_col = 3
     for item in reader:
         if reader.line_num == 1:
-            print(item)
+            #print(item)
             id_col = item.index("id")
             title_col = item.index("title")
             cat_col = item.index("categories")
@@ -80,7 +80,7 @@ def load_video_list(request):
         ad_config_list.append({
             "video_id":video_id,
             "config_num":item[config_num_col],
-            "config":item[config_col],
+            "config":item[config_col].replace("\'","\""),
         })
 
     # 将视频数据逐个在config中查询，最后取视频文件和视频信息都存在的视频作为最终结果（交集）
@@ -219,16 +219,20 @@ def new_session(request):
     session.pid = pid
     session.player_type = player_type
     session.save()
-    print(video,visitor.config_num)
+    #print(video,visitor.config_num)
     try:
         ads = AdConfig.objects.get(video=video,config_num=visitor.config_num).config
         print (ads)
     except:
         ads = "[]"
+    session.ad_config_num = visitor.config_num
+    session.ad_donfig = ads
+    session.save()
     ads = json.loads(ads)
     for ad_info in ads:
         ad = Ad.objects.get(ad_id=ad_info["ad_id"])
         ad_info.update(url = ad.url)
+    views = len(Session.objects.filter(video=video))
     response = JsonResponse({
         "is_new_visitor":is_new_visitor,
         "visitor_id":visitor.visitor_id,
@@ -245,6 +249,7 @@ def new_session(request):
             "ads":ads,
         } for video in [video] ],
         "config_num":visitor.config_num,
+        "views":views
     })
     response.set_cookie("token", visitor.token)
     response.set_cookie("visitor_id", visitor.visitor_id)
@@ -293,7 +298,7 @@ def new_event(request):
     buffered = body_dict.get("buffered",0)
     try: buffered = int(buffered)
     except: buffered = 0
-    print(session_id)
+    #print(session_id)
     try: session = Session.objects.get(pk=session_id)
     except: return HttpResponse("session DNE",status=402)
     event.session = session
@@ -301,7 +306,7 @@ def new_event(request):
     event.label = body_dict.get("label")
     event.description = body_dict.get("description")
     raw_timestamp = body_dict.get("timestamp")
-    print ("\n\n",video_info,"\n\n")
+    #print ("\n\n",video_info,"\n\n")
     timestamp = timezone.now()#timezone.fromtimestamp(float(raw_timestamp/1000))
     event.timestamp = timestamp
     event.video_time = float(body_dict.get("video_time"))
@@ -320,7 +325,7 @@ def get_video_list(request):
     #body_dict = json.loads(request.body.decode('utf-8'))
     #client = body_dict.get("client",0)
     video_list = Video.objects.all()
-    print(video_list)
+    #print(video_list)
     return JsonResponse({
         "result":[{
             "video_id": video.video_id,
@@ -392,6 +397,7 @@ def get_video_by_tag(request,cat_id):
                 #"svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
                 "created_time": video_cat.video.created_time,
                 "description": video_cat.video.description,
+                "views":len(Session.objects.filter(video=video_cat.video)),
             }for video_cat in Video_cat.objects.filter(cat_id=cat_id) ]
         })
     else:
@@ -405,6 +411,7 @@ def get_video_by_tag(request,cat_id):
                 #"svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
                 "created_time": video.created_time,
                 "description": video.description,
+                "views":len(Session.objects.filter(video=video)),
             }for video in Video.objects.all() ]
         })
 

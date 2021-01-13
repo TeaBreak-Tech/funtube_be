@@ -52,6 +52,8 @@ class Session(PrintableModel):
     start_time = models.DateTimeField(auto_now_add=True)
     pid = models.CharField(max_length=100, unique=False, null=True)
     player_type = models.IntegerField(null=True)
+    ad_config_num = models.IntegerField(null=True)
+    ad_donfig = models.TextField(null=True)
 
 class Event(PrintableModel):
     event_id = models.AutoField(primary_key=True)
