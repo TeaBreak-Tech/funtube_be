@@ -4,6 +4,9 @@ from secrets import token_urlsafe
 from django.views.decorators.http import require_http_methods
 from .models import *
 from django.forms.models import model_to_dict
+from django.utils import timezone
+from .Random_positions import generagte_random_ads
+
 import datetime
 import random
 import uuid
@@ -12,9 +15,26 @@ import json
 
 TOKEN_LENGTH = 50
 
+def setConfig(visitor, config_dic:dict):
+    try:
+        new_config_dic = json.loads(visitor.config)
+    except:
+        visitor.config = "{"+"}"
+        visitor.save()
+        new_config_dic = {}
+    for key in config_dic.keys():
+        new_config_dic[key] = config_dic[key]
+    visitor.config = json.dumps(new_config_dic)
+    visitor.save()
+
+def getConfig(visitor,key):
+    try:
+        return json.loads(visitor.config).get(key,None)
+    except:
+        return None
+
 def index(request):
     return HttpResponse("Hello, world. You're at the api index.")
-
 
 # 自动化加载和处理视频数据
 def load_video_list(request):
@@ -35,15 +55,17 @@ def load_video_list(request):
     reader = csv.reader(open(r"/home/www/res/video.csv", "r",encoding="utf8"))
     id_col = 0
     title_col = 1
-    desc_col = 2
+    cat_col = 2
+    tag_col = 3
     video_info_list = []
     #ad_col = 3
     for item in reader:
         if reader.line_num == 1:
-            print(item)
+            #print(item)
             id_col = item.index("id")
             title_col = item.index("title")
-            desc_col = item.index("description")
+            cat_col = item.index("categories")
+            tag_col = item.index("tags")
             #ad_col = item.index("ad1")
             continue
         try:
@@ -52,8 +74,8 @@ def load_video_list(request):
         video_info_list.append({
             "id":id,
             "title":item[title_col],
-            "description":item[desc_col],
-            #"ad":item[ad_col]
+            "cat":item[cat_col].split(" "),
+            "tag":item[tag_col].split(" "),
         })
 
     ad_config_list = []
@@ -76,7 +98,7 @@ def load_video_list(request):
         ad_config_list.append({
             "video_id":video_id,
             "config_num":item[config_num_col],
-            "config":item[config_col],
+            "config":item[config_col].replace("\'","\""),
         })
 
     # 将视频数据逐个在config中查询，最后取视频文件和视频信息都存在的视频作为最终结果（交集）
@@ -90,12 +112,31 @@ def load_video_list(request):
                     video.video_id = video_info["id"]
                 video.title = video_info["title"]
                 video.url = video_url["url"]
-                #video.cover_url = body_dict.get("cover_url")
-                #video.svi_raw = ' '.join([ str(i) for i in body_dict.get("svi_raw")])
-                #video.created_time = datetime.datetime.now()
-                video.description = video_info["description"]
-                #video.ad = video_info["ad"]
+                video.cover_url = "/poster/poster_"+str(id)+".jpg"
                 video.save()
+                
+                for cat_title in video_info["cat"]:
+                    try: cat = Cat.objects.get(cat_title=cat_title)
+                    except:
+                        cat = Cat()
+                        cat.cat_title = cat_title
+                        cat.save()
+                    video_cat = Video_cat()
+                    video_cat.video = video
+                    video_cat.cat = cat
+                    video_cat.save()
+                
+                for tag_title in video_info["tag"]:
+                    try: tag = Tag.objects.get(tag_title=tag_title)
+                    except:
+                        tag = Tag()
+                        tag.tag_title = tag_title
+                        tag.save()
+                    video_tag = Video_tag()
+                    video_tag.video = video
+                    video_tag.tag = tag
+                    video_tag.save()
+
                 for ad_config_info in ad_config_list:
                     if id==ad_config_info["video_id"]:
                         try: ad_config = AdConfig.objects.get(video = video,config_num = ad_config_info["config_num"])
@@ -196,16 +237,42 @@ def new_session(request):
     session.pid = pid
     session.player_type = player_type
     session.save()
-    print(video,visitor.config_num)
-    try:
-        ads = AdConfig.objects.get(video=video,config_num=visitor.config_num).config
-        print (ads)
-    except:
-        ads = "[]"
-    ads = json.loads(ads)
+    #print(video,visitor.config_num)
+    
+    # 生成广告方案
+
+    # 旧的方法是，配置文件预先存入数据表，每个【视频+方案号】对应一个方案详情，一个访客拥有一个方案号
+    # ads = AdConfig.objects.get(video=video,config_num=visitor.config_num).config
+
+    # 新的方法是使用随机插入算法返回一个列表。这个列表存入与用户一一对应的专属 Config 中
+    # 新的方案中，Config model 已被废除
+    ads = []
+
+    # 先在用户 config 中查找当前视频是否有广告方案记录
+    all_ad_config = getConfig(visitor,"ad_config")
+    prev_ad_config = []
+    if all_ad_config:
+        curr_ad_config = all_ad_config.get(str(video.video_id), [])
+    else:
+        all_ad_config = {}
+    if curr_ad_config and len(curr_ad_config) > 0:
+        # 如果有
+        ads = curr_ad_config
+        print(all_ad_config.keys())
+    else:
+        # 如果对应的视频没有记录，则随机生成广告方案，并存入用户设置
+        ads = generagte_random_ads(video.video_id)
+        all_ad_config[video.video_id] = ads
+        print(all_ad_config)
+        setConfig(visitor,{"ad_config":all_ad_config})
+
+    session.ad_config_num = visitor.config_num
+    session.ad_donfig = ads
+    session.save()
     for ad_info in ads:
         ad = Ad.objects.get(ad_id=ad_info["ad_id"])
         ad_info.update(url = ad.url)
+    views = len(Session.objects.filter(video=video))
     response = JsonResponse({
         "is_new_visitor":is_new_visitor,
         "visitor_id":visitor.visitor_id,
@@ -222,6 +289,7 @@ def new_session(request):
             "ads":ads,
         } for video in [video] ],
         "config_num":visitor.config_num,
+        "views":views
     })
     response.set_cookie("token", visitor.token)
     response.set_cookie("visitor_id", visitor.visitor_id)
@@ -266,19 +334,24 @@ def new_event(request):
     #event_id = uuid.uuid4()
     #event.event_id = event_id
     session_id = body_dict.get("session_id")
-    print(session_id)
+    video_info = body_dict.get("video_info")
+    buffered = body_dict.get("buffered",0)
+    try: buffered = int(buffered)
+    except: buffered = 0
+    #print(session_id)
     try: session = Session.objects.get(pk=session_id)
     except: return HttpResponse("session DNE",status=402)
     event.session = session
+    event.video_info = video_info
     event.label = body_dict.get("label")
     event.description = body_dict.get("description")
     raw_timestamp = body_dict.get("timestamp")
-    print(raw_timestamp/1000)
-    timestamp = datetime.datetime.fromtimestamp(float(raw_timestamp/1000))
+    #print ("\n\n",video_info,"\n\n")
+    timestamp = timezone.now()#timezone.fromtimestamp(float(raw_timestamp/1000))
     event.timestamp = timestamp
     event.video_time = float(body_dict.get("video_time"))
     event.volume = float(body_dict.get("volume"))
-    event.buffered = int(body_dict.get("buffered"))
+    event.buffered = buffered
     event.playback_rate = float(body_dict.get("playback_rate"))
     event.full_page = bool(body_dict.get("full_page"))
     event.full_screen = bool(body_dict.get("full_screen"))
@@ -289,10 +362,27 @@ def new_event(request):
 
 @require_http_methods(["GET","POST"])
 def get_video_list(request):
-    #body_dict = json.loads(request.body.decode('utf-8'))
-    #client = body_dict.get("client",0)
-    video_list = Video.objects.all()
-    print(video_list)
+    # 获取当前访客身份 visitor:Visitor
+    body_dict = json.loads(request.body.decode('utf-8'))
+    pid = body_dict.get("pid")
+    if pid:
+        try: visitor = Visitor.objects.get(pid=pid)
+        except: return HttpResponse("visitor DNE",status=401)
+    else:
+        token = request.COOKIES.get("token")
+        visitor_id = request.COOKIES.get("visitor_id")
+        try: visitor = Visitor.objects.get(pk=visitor_id)
+        except: return HttpResponse("visitor DNE",status=401)
+    # 获取视频列表
+    video_list_ids = getConfig(visitor,"video_list")
+    if(video_list_ids):
+        video_list = [ Video.objects.get(video_id=vid) for vid in video_list_ids ]
+    else:
+        video_list = list(Video.objects.all())
+        random.shuffle(video_list)
+        video_list_ids = [ video.video_id for video in video_list ]
+        setConfig(visitor,{"video_list":video_list_ids})
+
     return JsonResponse({
         "result":[{
             "video_id": video.video_id,
@@ -306,61 +396,76 @@ def get_video_list(request):
     })
 
 @require_http_methods(["GET"])
-def get_tagged_video_list(request):
-    result = [{
-            "tag_id":tag.tag_id,
-            "tag_title":tag.tag_title,
-            "videos":[{
-                "video_id": video_tag.video.video_id,
-                "title": video_tag.video.title,
-                "url": video_tag.video.url,
-                "cover_url": video_tag.video.cover_url,
-                #"svi_raw": [float(i) for i in video_tag.video.svi_raw.split(' ')],
-                "created_time": video_tag.video.created_time,
-                "description": video_tag.video.description,
-            }for video_tag in Video_tag.objects.all() ]
-        }for tag in list(Tag.objects.all())] 
-    
-    # 没有任何分类的视频单分一类
-    no_tag_videos = []
-    for video in Video.objects.all():
-        tags = Video_tag.objects.filter(video=video)
-        if len(tags) == 0:
-            no_tag_videos.append(video)
-    no_tag_videos_info = [{
-        "video_id": video.video_id,
-        "title": video.title,
-        "url": video.url,
-        "cover_url": video.cover_url,
-        #"svi_raw": [float(i) for i in video_tag.video.svi_raw.split(' ')],
-        "created_time": video.created_time,
-        "description": video.description,
-    }for video in no_tag_videos ]
+def get_video_by_tag(request,cat_id):
+    # 获取当前访客身份 visitor:Visitor
+    pid = request.GET.get("pid")
+    if pid:
+        try: visitor = Visitor.objects.get(pid=pid)
+        except: return HttpResponse("visitor DNE",status=401)
+    else:
+        token = request.COOKIES.get("token")
+        visitor_id = request.COOKIES.get("visitor_id")
+        try: visitor = Visitor.objects.get(pk=visitor_id)
+        except: return HttpResponse("visitor DNE",status=401)
+    # 获取视频列表
+    try:cat_id = int(cat_id)
+    except: cat_id = 0
+    if cat_id!=0:
+        cat = Cat.objects.get(cat_id=cat_id)
+        video_lists_by_cat = getConfig(visitor,"video_lists_by_cat")
+        if video_lists_by_cat:
+            cat_video_list_ids = video_lists_by_cat.get(cat.cat_title)
+        else:
+            video_lists_by_cat = {}
+            cat_video_list_ids = None
 
-    if len(no_tag_videos_info)>0:
-        result.append({
-            "tag_id":"none",
-            "tag_title":"未分类",
-            "videos":no_tag_videos_info,
+        if cat_video_list_ids:
+            cat_video_list = [ Video.objects.get(video_id=vid) for vid in cat_video_list_ids ]
+        else:
+            cat_video_list = [ video_cat.video for video_cat in Video_cat.objects.filter(cat_id=cat_id) ]
+            random.shuffle(cat_video_list)
+            cat_video_list_ids = [ video.video_id for video in cat_video_list ]
+            video_lists_by_cat[cat.cat_title] = cat_video_list_ids
+            setConfig(visitor,{"video_lists_by_cat":video_lists_by_cat})
+
+        
+
+        return JsonResponse({
+            "title":cat.cat_title,
+            "videos":[{
+                "video_id": video.video_id,
+                "title": video.title,
+                "url": video.url,
+                "cover_url": video.cover_url,
+                #"svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
+                "created_time": video.created_time,
+                "description": video.description,
+                "views":Session.objects.filter(video=video).count(),
+            }for video in cat_video_list ]
+        })
+    else:
+        video_list_ids = getConfig(visitor,"video_list")
+        if(video_list_ids):
+            video_list = [ Video.objects.get(pk=vid) for vid in video_list_ids ]
+        else:
+            video_list = list(Video.objects.all())
+            random.shuffle(video_list)
+            video_list_ids = [ video.video_id for video in video_list ]
+            setConfig(visitor,{"video_list":video_list_ids})
+        return JsonResponse({
+            "title":"全部视频",
+            "videos":[{
+                "video_id": video.video_id,
+                "title": video.title,
+                "url": video.url,
+                "cover_url": video.cover_url,
+                #"svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
+                "created_time": video.created_time,
+                "description": video.description,
+                "views":len(Session.objects.filter(video=video)),
+            }for video in video_list ]
         })
 
-    return JsonResponse({
-        "result":result
-    })
-
-@require_http_methods(["GET"])
-def get_video_by_tag(request,tag_title):
-    return JsonResponse({
-        "videos":[{
-            "video_id": video_tag.video.video_id,
-            "title": video_tag.video.title,
-            "url": video_tag.video.url,
-            "cover_url": video_tag.video.cover_url,
-            "svi_raw": [float(i) for i in video_tag.video.svi_raw.split(' ')],
-            "created_time": video_tag.video.created_time,
-            "description": video_tag.video.description,
-        }for video_tag in list( filter( lambda video_tag:video_tag.tag.tag_title==tag_title, list(Video_tag.objects.all()) ) )]
-    })
 
 @require_http_methods(["POST"])
 def add_video_tag(request):
@@ -383,3 +488,36 @@ def add_video_tag(request):
         video_tag.save()
     return HttpResponse("Save successfully")
 
+def getSuggestion(request):
+    video_id = request.GET.get("vid",None)
+    video_list = list(Video.objects.all())
+    for video in video_list:
+        if str(video.video_id) == video_id:
+            video_list.remove(video)
+
+    #video_list = random.sample(video_list,4)
+
+    result = [{
+        "video_id": video.video_id,
+        "title": video.title,
+        "url": video.url,
+        "cover_url": video.cover_url,
+        #"svi_raw": [float(i) for i in video.svi_raw.split(' ')],
+        "created_time": video.created_time,
+        "description":video.description,
+    } for video in video_list ]
+
+    return JsonResponse({
+        "result":result
+    })
+
+def getCategories(request):
+    cat_list = Cat.objects.all()
+    result = [{
+        "cat_id":cat.cat_id,
+        "cat_title":cat.cat_title,
+    } for cat in cat_list]
+    
+    return JsonResponse({
+        "result":result,
+    })
