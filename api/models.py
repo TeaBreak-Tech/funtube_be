@@ -30,6 +30,10 @@ class Video(PrintableModel):
 class Ad(PrintableModel):
     ad_id = models.IntegerField(primary_key=True)
     url = models.CharField(max_length=200)
+    link = models.TextField(null=True)
+    brand = models.TextField(null=True)
+    product = models.TextField(null=True)
+
 
 class AdConfig(PrintableModel):
     ad_config_id = models.AutoField(primary_key=True)

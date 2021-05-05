@@ -102,6 +102,7 @@ def load_video_list(request):
         })
 
     # 将视频数据逐个在config中查询，最后取视频文件和视频信息都存在的视频作为最终结果（交集）
+    # 已经存在的视频信息将会被保留或更改
     for video_url in video_url_list:
         id = video_url["id"]
         for video_info in video_info_list:
@@ -147,28 +148,40 @@ def load_video_list(request):
                         ad_config.save()
                 print("added video, id =", id,"title =", video.title)
     
-    # 加载全部广告信息
+    # 加载全部广告文件
+    ads = {}
     for path,dir_list,file_list in os.walk(r"/home/www/res/ad"):
         #print (file_list)
         for file_name in file_list: 
             #print(os.path.join(path, file_name) )
+            if file_name.split(".")[1] in ['csv', 'json']: continue
             id = int(file_name.split(".")[0].replace("ad_",""))
-            #print(id)
-            ad = Ad()
-            ad.ad_id = id
-            ad.url = "/ad/"+file_name
+            ads[id] = "/ad/"+file_name
+
+
+
+    # 从广告配置文件中读取相关广告信息, 填充进广告数据中
+    # 仅文件和信息都存在的广告才会被加载进去
+    # 已经存在的广告信息将会被保留或更改
+    reader3 = csv.reader(open(r"/home/www/res/ad/ad_info.csv", "r",encoding="utf8"))
+    for item in reader3:
+        id = int(item[0])
+        if ads.get(id):
+            try:
+                ad = Ad.objects.get(ad_id=id)
+            except:
+                ad = Ad()
+                ad.ad_id = item[0]
+            ad.link = item[1]
+            ad.brand = item[2]
+            ad.product = item[3]
             ad.save()
 
     # 给所有数据库视频抽取封面图
-    for video in Video.objects.all():
-        video_path = "/home/www/res/video/" + video.url.split("/")[-1]
-        #video_capture = cv2.VideoCapture(video_path)
-        #success, frame = video_capture.read()
-        #save_name = save_path + str(j) + '_' + str(i) + '.jpg'
+    # for video in Video.objects.all():
+    #     video_path = "/home/www/res/video/" + video.url.split("/")[-1]
 
-
-
-    return JsonResponse({})
+    return JsonResponse({"status":"success"})
 
 @require_http_methods(["POST"])
 def new_session(request):
@@ -227,7 +240,17 @@ def new_session(request):
         try: video = Video.objects.get(pk=video_id)
         except: 
             try: video = Video.objects.get(pk=int(video_id))
-            except: return HttpResponse(status=404)
+            except:
+                # 如果不包含，则视为净注册一个用户而不开始session
+                response = JsonResponse({
+                    "is_new_visitor":is_new_visitor,
+                    "visitor_id":visitor.visitor_id,
+                    "create_time":visitor.created_time,
+                    "config_num":visitor.config_num,
+                })
+                response.set_cookie("token", visitor.token)
+                response.set_cookie("visitor_id", visitor.visitor_id)
+                return response
     # 现在确保有了 visitor 对象和 video 对象
     session = Session()
     #session_id = uuid.uuid4()
@@ -254,6 +277,7 @@ def new_session(request):
     if all_ad_config:
         curr_ad_config = all_ad_config.get(str(video.video_id), [])
     else:
+        curr_ad_config = []
         all_ad_config = {}
     if curr_ad_config and len(curr_ad_config) > 0:
         # 如果有

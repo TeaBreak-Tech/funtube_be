@@ -15,4 +15,6 @@ urlpatterns = [
     path('video_tag/', views.add_video_tag),
     path('suggestion',views.getSuggestion),
     path('cat',views.getCategories),
+    path('history',views.getCategories),
+    path('',views.getCategories),
 ]

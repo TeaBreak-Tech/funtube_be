@@ -1,29 +1,29 @@
 #import util_preparation as up
 import pandas as pd
 import random
-import numpy as np
-import json
 import os
 import csv
-import math
+
+from .models import *
 
 PREVENT_DURATION = 60
 START_PREVENT_DURATION = 60
 END_PREVENT_DURATION = 60
 
 
-def generagte_random_ads(video_id):
+def generagte_random_ads(video_id,):
     
     N_ADS = 3
 
     # 确定插入的广告
     # 可用广告在 ad_urls.csv 里查询
     ads = []
-    reader = csv.reader(open(r"/home/www/res/ad/ad_urls.csv", "r",encoding="utf8"))
-    for item in reader:
-        ad_id = int(item[0])
-        ad_url = item[1]
-        ads.append([ad_id, ad_url])
+    ads = [[ad.ad_id, ad.link] for ad in Ad.objects.all()]
+    # reader = csv.reader(open(r"/home/www/res/ad/ad_urls.csv", "r",encoding="utf8"))
+    # for item in reader:
+    #     ad_id = int(item[0])
+    #     ad_url = item[1]
+    #     ads.append([ad_id, ad_url])
     # 随机取 N_ADS 个
     ads = random.sample(ads, N_ADS)
 
