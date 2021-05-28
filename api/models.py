@@ -26,13 +26,16 @@ class Video(PrintableModel):
     created_time = models.DateTimeField(auto_now=True)
     description = models.TextField()
     client = models.IntegerField(default=0) # 0 for webpage, 1 for plugin player
+    length = models.FloatField(default=0)
     
 class Ad(PrintableModel):
     ad_id = models.IntegerField(primary_key=True)
-    url = models.CharField(max_length=200)
-    link = models.TextField(null=True)
+    src = models.CharField(max_length=200)
+    href = models.TextField(null=True)
     brand = models.TextField(null=True)
     product = models.TextField(null=True)
+    cb = models.TextField(null=True)
+    db = models.TextField(null=True)
 
 
 class AdConfig(PrintableModel):
@@ -49,6 +52,7 @@ class Visitor(PrintableModel):
     pid = models.CharField(max_length=100, unique=True, null=True)
     config_num = models.IntegerField(default=1)
     config = models.TextField()
+    ads = models.ManyToManyField(Ad)
 
 class Session(PrintableModel):
     session_id = models.AutoField(primary_key=True)
@@ -93,3 +97,7 @@ class Video_cat(PrintableModel):
     video_cat_id = models.AutoField(primary_key=True)
     video = models.ForeignKey(Video, on_delete=models.SET_NULL, null=True, db_column="video")
     cat = models.ForeignKey(Cat, on_delete=models.SET_NULL, null=True, db_column="cat")
+    
+class Shot(PrintableModel):
+    video = models.ForeignKey(Video, on_delete=models.SET_NULL, null=True, db_column="video")
+    end_time = models.FloatField()

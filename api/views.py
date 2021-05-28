@@ -6,6 +6,7 @@ from .models import *
 from django.forms.models import model_to_dict
 from django.utils import timezone
 from .Random_positions import generagte_random_ads
+import pandas as pd
 
 import datetime
 import random
@@ -172,14 +173,41 @@ def load_video_list(request):
             except:
                 ad = Ad()
                 ad.ad_id = item[0]
-            ad.link = item[1]
+            ad.src = ads.get(id) 
+            ad.href = item[1]
             ad.brand = item[2]
             ad.product = item[3]
+            ad.cb = item[4]
+            ad.db = item[5]
             ad.save()
 
     # 给所有数据库视频抽取封面图
     # for video in Video.objects.all():
     #     video_path = "/home/www/res/video/" + video.url.split("/")[-1]
+
+    # 读取全部镜头信息
+    for path,dir_list,file_list in os.walk(r"/home/www/res/video_shot_csv"):
+        for file_name in file_list:
+            id = int(file_name.split("/")[-1].split("_")[0].replace("video",""))
+            video = Video.objects.get(video_id = id)
+            # 读取 _shot.csv, 获取全部镜头信息
+            reader = csv.reader(open(r"/home/www/res/video_shot_csv/"+file_name, "r",encoding="utf8"))
+            v_length = pd.read_csv(r"/home/www/res/video_shot_csv/"+file_name).iloc[-1]["end_time"]
+
+            for item in reader:
+                # print(item[3])
+                if reader.line_num == 1: continue
+                START_TIME_COL = 2
+                END_TIME_COL = 3
+
+                end_time = float(item[END_TIME_COL])
+                shot = Shot(video=video, end_time = end_time)
+                shot.save()
+            
+            video.length = v_length
+            video.save()
+
+
 
     return JsonResponse({"status":"success"})
 
@@ -295,7 +323,7 @@ def new_session(request):
     session.save()
     for ad_info in ads:
         ad = Ad.objects.get(ad_id=ad_info["ad_id"])
-        ad_info.update(url = ad.url)
+        ad_info.update(url = ad.href)
     views = len(Session.objects.filter(video=video))
     response = JsonResponse({
         "is_new_visitor":is_new_visitor,
@@ -382,6 +410,14 @@ def new_event(request):
     event.player_height = int(body_dict.get("player_height"))
     event.player_width = int(body_dict.get("player_width"))
     event.save()
+
+    if video_info.split('_')[0]=='ad':
+        print("addddddd")
+        ad_id = int( video_info.split('_')[1] )
+        ad = Ad.objects.get(ad_id = ad_id)
+        visitor.ads.add(ad)
+        visitor.save()
+
     return HttpResponse("event saved")
 
 @require_http_methods(["GET","POST"])
@@ -545,3 +581,45 @@ def getCategories(request):
     return JsonResponse({
         "result":result,
     })
+
+def getHistory(request):
+    pid = request.GET.get('pid')
+    try:
+        visitor = Visitor.objects.get(pid=pid)
+    except:
+        return JsonResponse({"result":[]})
+    sessions = Session.objects.filter(visitor=visitor)
+    viewed_ids = [ session.video.video_id for session in sessions]
+
+    result = [{
+        "video_id": video.video_id,
+        "title":video.title,
+        "viewed": 1 if (video.video_id in viewed_ids) else 0,
+    } for video in Video.objects.all()]
+
+    response = JsonResponse({"result":result})
+
+    response["Access-Control-Allow-Origin"] = "*"
+
+    return response
+
+def getViewedAds(request):
+    pid = request.GET.get('pid')
+    try:
+        visitor = Visitor.objects.get(pid=pid)
+    except:
+        return JsonResponse({"result":[]})
+    ads = visitor.ads.all()
+    result = [{
+        "ad_id":ad.ad_id,
+        "brand": ad.brand,
+        "product": ad.product,
+        "cb": ad.cb,
+        "db":ad.db,
+    } for ad in ads]
+
+    response = JsonResponse({"result":result})
+
+    response["Access-Control-Allow-Origin"] = "*"
+
+    return response
