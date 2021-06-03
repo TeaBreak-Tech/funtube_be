@@ -241,7 +241,7 @@ def new_session(request):
         #visitor.visitor_id = visitor_id
         # 无论新用户来自哪个来源,都要给该用户分配一个广告配置版本 1/2/3/4
         visitor.save()
-        visitor.config_num = visitor.visitor_id%4 + 1
+        #visitor.config_num = visitor.visitor_id%4 + 1
         visitor.token = token
         #visitor.video = video
         visitor.pid = pid

@@ -50,7 +50,7 @@ class Visitor(PrintableModel):
     created_time = models.DateTimeField(auto_now_add=True)
     video = models.ForeignKey(Video, on_delete=models.SET_NULL, null=True, db_column="video")
     pid = models.CharField(max_length=100, unique=True, null=True)
-    config_num = models.IntegerField(default=1)
+    #config_num = models.IntegerField(default=1)
     config = models.TextField()
     ads = models.ManyToManyField(Ad)
 
