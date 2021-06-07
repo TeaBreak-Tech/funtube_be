@@ -38,6 +38,8 @@ class Ad(PrintableModel):
     db = models.TextField(null=True)
     cb_name = models.TextField(null=True)
     db_name = models.TextField(null=True)
+    cp_name = models.TextField(null=True)
+    dp_name = models.TextField(null=True)
 
 
 class AdConfig(PrintableModel):

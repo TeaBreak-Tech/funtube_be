@@ -180,7 +180,9 @@ def load_video_list(request):
             ad.cb = item[4]
             ad.db = item[5]
             ad.cb_name = item[8]
-            ad.db_name = item[9]
+            ad.db_name = item[10]
+            ad.cp_name = item[9]
+            ad.dp_name = item[11]
             ad.save()
 
     # 给所有数据库视频抽取封面图
@@ -606,13 +608,19 @@ def getViewedAds(request):
     pid = request.GET.get('pid')
     try:
         visitor = Visitor.objects.get(pid=pid)
+        ads = visitor.ads.all()
     except:
-        return JsonResponse({"result":[]})
-    ads = visitor.ads.all()
+        ads=[]
+
+    if len(list(ads))<= 0:
+        ads = [Ad.objects.get(pk=1)]
+        
     result = [{
         "ad_id":ad.ad_id,
         "brand": ad.brand,
         "product": ad.product,
+        "cp": ad.cp_name,
+        "dp":ad.dp_name,
         "cb": ad.cb_name,
         "db":ad.db_name,
         "cb_src": ad.cb,
