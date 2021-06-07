@@ -36,6 +36,8 @@ class Ad(PrintableModel):
     product = models.TextField(null=True)
     cb = models.TextField(null=True)
     db = models.TextField(null=True)
+    cb_name = models.TextField(null=True)
+    db_name = models.TextField(null=True)
 
 
 class AdConfig(PrintableModel):

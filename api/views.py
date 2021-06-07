@@ -179,6 +179,8 @@ def load_video_list(request):
             ad.product = item[3]
             ad.cb = item[4]
             ad.db = item[5]
+            ad.cb_name = item[8]
+            ad.db_name = item[9]
             ad.save()
 
     # 给所有数据库视频抽取封面图
@@ -274,7 +276,7 @@ def new_session(request):
                     "is_new_visitor":is_new_visitor,
                     "visitor_id":visitor.visitor_id,
                     "create_time":visitor.created_time,
-                    "config_num":visitor.config_num,
+                    #"config_num":visitor.config_num,
                 })
                 response.set_cookie("token", visitor.token)
                 response.set_cookie("visitor_id", visitor.visitor_id)
@@ -317,8 +319,6 @@ def new_session(request):
         all_ad_config[video.video_id] = ads
         print(all_ad_config)
         setConfig(visitor,{"ad_config":all_ad_config})
-
-    session.ad_config_num = visitor.config_num
     session.ad_donfig = ads
     session.save()
     for ad_info in ads:
@@ -340,7 +340,6 @@ def new_session(request):
             "description":video.description,
             "ads":ads,
         } for video in [video] ],
-        "config_num":visitor.config_num,
         "views":views
     })
     response.set_cookie("token", visitor.token)
@@ -614,8 +613,10 @@ def getViewedAds(request):
         "ad_id":ad.ad_id,
         "brand": ad.brand,
         "product": ad.product,
-        "cb": ad.cb,
-        "db":ad.db,
+        "cb": ad.cb_name,
+        "db":ad.db_name,
+        "cb_src": ad.cb,
+        "db_src":ad.db,
     } for ad in ads]
 
     response = JsonResponse({"result":result})
