@@ -68,7 +68,7 @@ class Session(PrintableModel):
     pid = models.CharField(max_length=100, unique=False, null=True)
     player_type = models.IntegerField(null=True)
     ad_config_num = models.IntegerField(null=True)
-    ad_donfig = models.TextField(null=True)
+    ad_config = models.TextField(null=True)
     ads = models.ManyToManyField(Ad)
 
 class Event(PrintableModel):

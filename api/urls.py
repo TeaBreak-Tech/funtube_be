@@ -18,5 +18,7 @@ urlpatterns = [
     path('videos',views.getHistory),
     path('ads',views.getViewedAds),
     path('ad_plan',views.getAdPlan),
+    path('data/visitorlist',views.listAllVisitors),
+    path('data/visitor/<pid>',views.showVisitorInfo),
     path('',views.getCategories),
 ]

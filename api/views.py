@@ -1,3 +1,4 @@
+from django.db.models.query import QuerySet
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
 from secrets import token_urlsafe
@@ -388,7 +389,7 @@ def new_session(request):
         print(all_ad_config)
         setConfig(visitor,{"ad_config":all_ad_config})
 
-    session.ad_donfig = ads
+    session.ad_config = ads
     session.save()
     # for ad_info in ads:
     #     ad = Ad.objects.get(ad_id=ad_info["ad_id"])
@@ -764,3 +765,90 @@ def getAdPlan(request):
         "src": ad_to_show.src,
         "href": ad_to_show.href,
     })
+
+def listAllVisitors(request):
+    filter = request.GET.get("filter")
+    result:QuerySet = Visitor.objects.all()
+    if filter == "has_pid":
+        result:QuerySet = result.filter(pid__isnull=False)
+    return JsonResponse({"result":[
+        {
+            "visitor_id": visitor.visitor_id,
+            "pid": visitor.pid,
+            "created_time": visitor.created_time,
+        }
+    for visitor in result]})
+
+def showVisitorInfo(request, pid):
+    try:
+        visitor = Visitor.objects.get(pid=pid)
+    except:
+        return JsonResponse({"error":"Visitor with requested PID not found."})
+    else:
+        
+        config = json.loads(visitor.config)
+        ad_config = config.get("ad_config")
+        for key in ad_config.keys():
+            ads = ad_config[key]
+            ads = [{"time":ad["time"]} for ad in ads]
+            ad_config[key] = ads
+        config["ad_config"] = ad_config
+
+        return JsonResponse({
+            "visitor_id": visitor.visitor_id,
+            "pid": visitor.pid,
+            "created_time": visitor.created_time,
+            "config": config,
+            # "viewed_ads":[
+            #     {
+            #         "ad_id":ad.ad_id,
+            #         "brand": ad.brand,
+            #         "product": ad.product,
+            #         "cp": ad.cp_name,
+            #         "dp":ad.dp_name,
+            #         "cb": ad.cb_name,
+            #         "db":ad.db_name,
+            #         "cb_src": ad.cb,
+            #         "db_src":ad.db,
+            #     }
+            # for ad in visitor.ads.all()],
+            "sessions":[
+                {
+                    "session_id": session.session_id,
+                    "video": {
+                        "video_id": session.video.video_id,
+                        "title": session.video.title,
+                        "created_time": getPubDate(visitor,session.video.video_id),
+                    },
+                    # "ad_config": json.loads(session.ad_config.replace('\'','\"')),
+                    "ads":[{
+                        "ad_id":ad.ad_id,
+                        "brand": ad.brand,
+                        "product": ad.product,
+                        "cp": ad.cp_name,
+                        "dp":ad.dp_name,
+                        "cb": ad.cb_name,
+                        "db":ad.db_name,
+                        "cb_src": ad.cb,
+                        "db_src":ad.db,
+                    } for ad in session.ads.all()],
+                    "start_time":session.start_time,
+                    # "events": [
+                    #     {
+                    #         "event_id":event.event_id,
+                    #         "video_info":event.video_info,
+                    #         "description":event.description,
+                    #         "timestamp":event.timestamp,
+                    #         "video_time":event.video_time,
+                    #         "volume":event.volume,
+                    #         "buffered":event.buffered,
+                    #         "playback_rate":event.playback_rate,
+                    #         "full_page":event.full_page,
+                    #         "full_screen":event.full_screen,
+                    #         "player_height":event.player_height,
+                    #         "player_width":event.player_width,
+                    #     }
+                    # for event in Event.objects.filter(session=session)]
+                }
+            for session in Session.objects.filter(visitor=visitor)]
+        })
