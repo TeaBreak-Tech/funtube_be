@@ -57,6 +57,8 @@ class Visitor(PrintableModel):
     #config_num = models.IntegerField(default=1)
     config = models.TextField()
     ads = models.ManyToManyField(Ad)
+    ad_to_show = models.ForeignKey(Ad, on_delete=models.SET_NULL, null=True, related_name="current_visitor" )
+    ads_candidate = models.ManyToManyField(Ad, related_name="protential_visitor")
 
 class Session(PrintableModel):
     session_id = models.AutoField(primary_key=True)
@@ -67,6 +69,7 @@ class Session(PrintableModel):
     player_type = models.IntegerField(null=True)
     ad_config_num = models.IntegerField(null=True)
     ad_donfig = models.TextField(null=True)
+    ads = models.ManyToManyField(Ad)
 
 class Event(PrintableModel):
     event_id = models.AutoField(primary_key=True)

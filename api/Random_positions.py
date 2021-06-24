@@ -7,13 +7,11 @@ import csv
 from .models import *
 
 PREVENT_DURATION = 60
-START_PREVENT_DURATION = 60
-END_PREVENT_DURATION = 60
+START_PREVENT_DURATION = 120
+END_PREVENT_DURATION = 120
 
 
-def generagte_random_ads(video_id,):
-    
-    N_ADS = 3
+def generagte_random_ads(video_id,N_ADS=3):
 
     # 确定插入的广告
     # 可用广告在 ad_urls.csv 里查询

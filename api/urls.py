@@ -17,5 +17,6 @@ urlpatterns = [
     path('cat',views.getCategories),
     path('videos',views.getHistory),
     path('ads',views.getViewedAds),
+    path('ad_plan',views.getAdPlan),
     path('',views.getCategories),
 ]

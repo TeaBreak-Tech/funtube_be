@@ -37,6 +37,42 @@ def getConfig(visitor,key):
 def index(request):
     return HttpResponse("Hello, world. You're at the api index.")
 
+
+def getViewNum(visitor,video_id):
+    n_view_dic = getConfig(visitor,"n_view_dic")
+    changed = False
+    if not n_view_dic:
+        n_view_dic = {}
+        changed = True
+    if not n_view_dic.get(str(video_id)):
+        n_view_dic[str(video_id)] = random.randint(0,100)
+        changed = True
+    if changed:
+        setConfig(visitor,{"n_view_dic":n_view_dic})
+    return n_view_dic[str(video_id)]
+
+def getPubDate(visitor,video_id):
+    pub_date_dic = getConfig(visitor,"pub_date_dic")
+    changed = False
+    if not pub_date_dic:
+        pub_date_dic = {}
+        changed = True
+    if not pub_date_dic.get(str(video_id)):
+        a1=(2021,1,1,0,0,0,0,0,0)
+        a2=(2021,6,23,0,0,0,0,0,0)
+        start=time.mktime(a1)    #生成开始时间戳
+        end=time.mktime(a2)      #生成结束时间戳  
+        t=random.randint(start,end)    #在开始和结束时间戳中随机取出一个
+        date_touple=time.localtime(t)          #将时间戳生成时间元组
+        date_str=time.strftime("%Y-%m-%d",date_touple)  #将时间元组转成格式化字符串（1976-05-21）
+        print(date_str)
+        pub_date_dic[str(video_id)] = date_str
+        changed = True
+    if changed:
+        setConfig(visitor,{"pub_date_dic":pub_date_dic})
+    return pub_date_dic.get(str(video_id))
+
+
 # 自动化加载和处理视频数据
 def load_video_list(request):
     # 本函数仅在修改实验设置时使用，用于完全重置数据库视频设置
@@ -250,6 +286,17 @@ def new_session(request):
         #visitor.video = video
         visitor.pid = pid
         visitor.save()
+        # 全部广告放入备选
+        for ad in Ad.objects.all():
+            if ad.ad_id != 1:
+                visitor.ads_candidate.add(ad)
+        visitor.save()
+        # 随机分配一个初始广告
+        ad_to_show = random.sample(list(visitor.ads_candidate.all()),1)[0]
+        visitor.ad_to_show = ad_to_show
+        visitor.ads_candidate.remove(ad_to_show)
+        visitor.save()
+        
     # 现在确保有了 visitor 对象
     if client==1:
         # 如果用户来自于问卷
@@ -296,16 +343,34 @@ def new_session(request):
     
     # 生成广告方案
 
-    # 旧的方法是，配置文件预先存入数据表，每个【视频+方案号】对应一个方案详情，一个访客拥有一个方案号
+    # 方案1，配置文件预先存入数据表，每个【视频+方案号】对应一个方案详情，一个访客拥有一个方案号
     # ads = AdConfig.objects.get(video=video,config_num=visitor.config_num).config
 
-    # 新的方法是使用随机插入算法返回一个列表。这个列表存入与用户一一对应的专属 Config 中
-    # 新的方案中，Config model 已被废除
-    ads = []
+    # 方案2，是使用随机插入算法返回一个列表。这个列表存入与用户一一对应的专属 Config 中
+    # 此方案中，Config model 已被废除
+    # ads = []
+    # # 先在用户 config 中查找当前视频是否有广告方案记录
+    # all_ad_config = getConfig(visitor,"ad_config")
+    # if all_ad_config:
+    #     curr_ad_config = all_ad_config.get(str(video.video_id), [])
+    # else:
+    #     curr_ad_config = []
+    #     all_ad_config = {}
+    # if curr_ad_config and len(curr_ad_config) > 0:
+    #     # 如果有
+    #     ads = curr_ad_config
+    #     print(all_ad_config.keys())
+    # else:
+    #     # 如果对应的视频没有记录，则随机生成广告方案，并存入用户设置
+    #     ads = generagte_random_ads(video.video_id)
+    #     all_ad_config[video.video_id] = ads
+    #     print(all_ad_config)
+    #     setConfig(visitor,{"ad_config":all_ad_config})
 
+    # 方案3 每个视频里只插播一个广告，位点固定，具体是哪个广告留给其他接口决定
+    ads = []
     # 先在用户 config 中查找当前视频是否有广告方案记录
     all_ad_config = getConfig(visitor,"ad_config")
-    prev_ad_config = []
     if all_ad_config:
         curr_ad_config = all_ad_config.get(str(video.video_id), [])
     else:
@@ -317,16 +382,17 @@ def new_session(request):
         print(all_ad_config.keys())
     else:
         # 如果对应的视频没有记录，则随机生成广告方案，并存入用户设置
-        ads = generagte_random_ads(video.video_id)
+        ads = generagte_random_ads(video.video_id,1)
+        ads[0]["ad_id"] = "auto"; ads[0]["src"] = "auto"
         all_ad_config[video.video_id] = ads
         print(all_ad_config)
         setConfig(visitor,{"ad_config":all_ad_config})
+
     session.ad_donfig = ads
     session.save()
-    for ad_info in ads:
-        ad = Ad.objects.get(ad_id=ad_info["ad_id"])
-        ad_info.update(url = ad.href)
-    views = len(Session.objects.filter(video=video))
+    # for ad_info in ads:
+    #     ad = Ad.objects.get(ad_id=ad_info["ad_id"])
+    #     ad_info.update(url = ad.href)
     response = JsonResponse({
         "is_new_visitor":is_new_visitor,
         "visitor_id":visitor.visitor_id,
@@ -338,11 +404,11 @@ def new_session(request):
             "url": video.url,
             "cover_url": video.cover_url,
             #"svi_raw": [float(i) for i in video.svi_raw.split(' ')],
-            "created_time": video.created_time,
+            "created_time": getPubDate(visitor,video.video_id),
             "description":video.description,
             "ads":ads,
         } for video in [video] ],
-        "views":views
+        "views":getViewNum(visitor,video.video_id)
     })
     response.set_cookie("token", visitor.token)
     response.set_cookie("visitor_id", visitor.visitor_id)
@@ -353,7 +419,6 @@ def logout(request):
     response.set_cookie("token", None)
     response.set_cookie("visitor_id", None)
     return response
-
 
 @require_http_methods(["POST"])
 def add_video(request):
@@ -381,7 +446,7 @@ def new_event(request):
     else:
         token = request.COOKIES.get("token")
         visitor_id = request.COOKIES.get("visitor_id")
-        try: visitor = Visitor.objects.get(pk=visitor_id)
+        try: visitor:Visitor = Visitor.objects.get(pk=visitor_id)
         except: return HttpResponse("visitor DNE",status=401)
     event = Event()
     #event_id = uuid.uuid4()
@@ -392,7 +457,7 @@ def new_event(request):
     try: buffered = int(buffered)
     except: buffered = 0
     #print(session_id)
-    try: session = Session.objects.get(pk=session_id)
+    try: session:Session = Session.objects.get(pk=session_id)
     except: return HttpResponse("session DNE",status=402)
     event.session = session
     event.video_info = video_info
@@ -413,11 +478,31 @@ def new_event(request):
     event.save()
 
     if video_info.split('_')[0]=='ad':
-        print("addddddd")
         ad_id = int( video_info.split('_')[1] )
-        ad = Ad.objects.get(ad_id = ad_id)
+        ad:Ad = Ad.objects.get(ad_id = ad_id)
+        # 如果是新的ad,那么增加观看记录，更新用户的 ad_to_show
+        #if not ad in list(visitor.ads.all()):
+        # print("new add visited")
         visitor.ads.add(ad)
-        visitor.save()
+        session.ads.add(ad)
+        if visitor.ads_candidate.count() > 0:
+            ad_to_show = random.sample(list(visitor.ads_candidate.all()),1)[0]
+            visitor.ad_to_show = ad_to_show
+            visitor.save()
+            # 只有第一次看到广告才排除这个广告及其竞争者
+            if visitor.ads_candidate.count() > (Ad.objects.count()-3):
+                print("Removing first ad and its cpmpetitor")
+                visitor.ads_candidate.remove(ad_to_show)
+                # 移除竞争者
+                print(ad.cb)
+                comp = Ad.objects.get(ad_id=ad.cb.split('_')[1])
+                visitor.ads_candidate.remove(comp)
+                visitor.save()
+                print(visitor.ads_candidate.all())
+            # else do nothing
+        # Never have "else". "Count>0" is just for insurance.
+        # else:
+        #     print("playing existing add")
 
     return HttpResponse("event saved")
 
@@ -451,8 +536,9 @@ def get_video_list(request):
             "url": video.url,
             "cover_url": video.cover_url,
             #"svi_raw": [float(i) for i in video.svi_raw.split(' ')],
-            "created_time": video.created_time,
+            "created_time": getPubDate(visitor,video.video_id),
             "description":video.description,
+            "views":getViewNum(visitor,video.video_id),
         } for video in video_list ]
     })
 
@@ -499,9 +585,9 @@ def get_video_by_tag(request,cat_id):
                 "url": video.url,
                 "cover_url": video.cover_url,
                 #"svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
-                "created_time": video.created_time,
+                "created_time": getPubDate(visitor,video.video_id),
                 "description": video.description,
-                "views":Session.objects.filter(video=video).count(),
+                "views":getViewNum(visitor,video.video_id),
             }for video in cat_video_list ]
         })
     else:
@@ -521,9 +607,9 @@ def get_video_by_tag(request,cat_id):
                 "url": video.url,
                 "cover_url": video.cover_url,
                 #"svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
-                "created_time": video.created_time,
+                "created_time": getPubDate(visitor,video.video_id),
                 "description": video.description,
-                "views":len(Session.objects.filter(video=video)),
+                "views":getViewNum(visitor,video.video_id),
             }for video in video_list ]
         })
 
@@ -551,22 +637,45 @@ def add_video_tag(request):
 
 def getSuggestion(request):
     video_id = request.GET.get("vid",None)
-    video_list = list(Video.objects.all())
-    for video in video_list:
-        if str(video.video_id) == video_id:
-            video_list.remove(video)
+    # video_list = list(Video.objects.all())
+    # for video in video_list:
+    #     if str(video.video_id) == video_id:
+    #         video_list.remove(video)
 
     #video_list = random.sample(video_list,4)
 
+    # 获取当前访客身份 visitor:Visitor
+    pid = request.GET.get("pid")
+    if pid:
+        try: visitor = Visitor.objects.get(pid=pid)
+        except: return HttpResponse("visitor DNE",status=401)
+    else:
+        token = request.COOKIES.get("token")
+        visitor_id = request.COOKIES.get("visitor_id")
+        try: visitor = Visitor.objects.get(pk=visitor_id)
+        except: return HttpResponse("visitor DNE",status=401)
+
+    video_list_ids = getConfig(visitor,"video_list")
+    if(video_list_ids):
+        video_list = [ Video.objects.get(pk=vid) for vid in video_list_ids ]
+    else:
+        video_list = list(Video.objects.all())
+        random.shuffle(video_list)
+        video_list_ids = [ video.video_id for video in video_list ]
+        setConfig(visitor,{"video_list":video_list_ids})
+    for video in video_list:
+        if str(video.video_id) == video_id:
+            video_list.remove(video)
     result = [{
         "video_id": video.video_id,
         "title": video.title,
         "url": video.url,
         "cover_url": video.cover_url,
-        #"svi_raw": [float(i) for i in video.svi_raw.split(' ')],
-        "created_time": video.created_time,
-        "description":video.description,
-    } for video in video_list ]
+        #"svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
+        "created_time": getPubDate(visitor,video.video_id),
+        "description": video.description,
+        "views":getViewNum(visitor,video.video_id),
+    }for video in video_list ]
 
     return JsonResponse({
         "result":result
@@ -632,3 +741,26 @@ def getViewedAds(request):
     response["Access-Control-Allow-Origin"] = "*"
 
     return response
+
+def getAdPlan(request):
+
+    token = request.COOKIES.get("token")
+    visitor_id = request.COOKIES.get("visitor_id")
+    try: visitor:Visitor = Visitor.objects.get(pk=visitor_id)
+    except: return HttpResponse("visitor DNE",status=401)
+
+    ad_to_show:Ad = visitor.ad_to_show
+    if not ad_to_show:
+        ad_to_show = random.sample(list(Ad.objects.all()),1)[0]
+        visitor.ad_to_show = ad_to_show
+        visitor.save()
+    print({
+        "ad_id": ad_to_show.ad_id,
+        "src": ad_to_show.src,
+        "href": ad_to_show.href,
+    })
+    return JsonResponse({
+        "ad_id": ad_to_show.ad_id,
+        "src": ad_to_show.src,
+        "href": ad_to_show.href,
+    })
