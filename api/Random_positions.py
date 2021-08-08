@@ -28,13 +28,14 @@ def generagte_random_ads(video_id,N_ADS=3):
     # 确定插入时间
     # 遍历全部_shot.csv，找到当前视频的对应 _shot.csv
     available_times = []
+    available_local_shot_ids = []
     for path,dir_list,file_list in os.walk(r"/home/www/res/video_shot_csv"):
         for file_name in file_list:
             id = int(file_name.split("/")[-1].split("_")[0].replace("video",""))
 
             video = Video.objects.get(video_id=video_id)
             v_length = video.length
-            shots = Shot.objects.filter(video=video)
+            shots:Shot = Shot.objects.filter(video=video)
 
             
 
@@ -47,6 +48,7 @@ def generagte_random_ads(video_id,N_ADS=3):
 
                 if end_time > START_PREVENT_DURATION and end_time < v_length - END_PREVENT_DURATION:
                     available_times.append(end_time)
+                    available_local_shot_ids.append(shot.local_shot_id)
 
     def randomize_time():  
         ad_times = random.sample(available_times, N_ADS)
@@ -69,6 +71,10 @@ def generagte_random_ads(video_id,N_ADS=3):
         #print("ERROR: len(available_times) <= N_ADS")
         return []
 
+    local_shot_ids = []
+    for time in ad_times:
+        local_shot_ids.append(available_local_shot_ids[available_times.index(time)])
+
     # print(ad_times)
 
     result = []
@@ -76,6 +82,7 @@ def generagte_random_ads(video_id,N_ADS=3):
         result.append({
             "ad_id":ads[i][0],
             "time":ad_times[i],
+            "local_shot_id":local_shot_ids[i],
             "href":ads[i][1],
             "src":ads[i][2]
         })

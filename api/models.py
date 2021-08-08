@@ -108,3 +108,4 @@ class Video_cat(PrintableModel):
 class Shot(PrintableModel):
     video = models.ForeignKey(Video, on_delete=models.SET_NULL, null=True, db_column="video")
     end_time = models.FloatField()
+    local_shot_id = models.CharField(null=True,max_length=200)

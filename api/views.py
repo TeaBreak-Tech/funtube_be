@@ -17,11 +17,12 @@ import json
 
 TOKEN_LENGTH = 50
 
-def setConfig(visitor, config_dic:dict):
+
+def setConfig(visitor, config_dic: dict):
     try:
         new_config_dic = json.loads(visitor.config)
     except:
-        visitor.config = "{"+"}"
+        visitor.config = "{" + "}"
         visitor.save()
         new_config_dic = {}
     for key in config_dic.keys():
@@ -29,48 +30,51 @@ def setConfig(visitor, config_dic:dict):
     visitor.config = json.dumps(new_config_dic)
     visitor.save()
 
-def getConfig(visitor,key):
+
+def getConfig(visitor, key):
     try:
-        return json.loads(visitor.config).get(key,None)
+        return json.loads(visitor.config).get(key, None)
     except:
         return None
+
 
 def index(request):
     return HttpResponse("Hello, world. You're at the api index.")
 
 
-def getViewNum(visitor,video_id):
-    n_view_dic = getConfig(visitor,"n_view_dic")
+def getViewNum(visitor, video_id):
+    n_view_dic = getConfig(visitor, "n_view_dic")
     changed = False
     if not n_view_dic:
         n_view_dic = {}
         changed = True
     if not n_view_dic.get(str(video_id)):
-        n_view_dic[str(video_id)] = random.randint(0,100)
+        n_view_dic[str(video_id)] = random.randint(0, 100)
         changed = True
     if changed:
-        setConfig(visitor,{"n_view_dic":n_view_dic})
+        setConfig(visitor, {"n_view_dic": n_view_dic})
     return n_view_dic[str(video_id)]
 
-def getPubDate(visitor,video_id):
-    pub_date_dic = getConfig(visitor,"pub_date_dic")
+
+def getPubDate(visitor, video_id):
+    pub_date_dic = getConfig(visitor, "pub_date_dic")
     changed = False
     if not pub_date_dic:
         pub_date_dic = {}
         changed = True
     if not pub_date_dic.get(str(video_id)):
-        a1=(2021,1,1,0,0,0,0,0,0)
-        a2=(2021,6,23,0,0,0,0,0,0)
-        start=time.mktime(a1)    #生成开始时间戳
-        end=time.mktime(a2)      #生成结束时间戳  
-        t=random.randint(start,end)    #在开始和结束时间戳中随机取出一个
-        date_touple=time.localtime(t)          #将时间戳生成时间元组
-        date_str=time.strftime("%Y-%m-%d",date_touple)  #将时间元组转成格式化字符串（1976-05-21）
+        a1 = (2021, 1, 1, 0, 0, 0, 0, 0, 0)
+        a2 = (2021, 6, 23, 0, 0, 0, 0, 0, 0)
+        start = time.mktime(a1)  # 生成开始时间戳
+        end = time.mktime(a2)  # 生成结束时间戳
+        t = random.randint(start, end)  # 在开始和结束时间戳中随机取出一个
+        date_touple = time.localtime(t)  # 将时间戳生成时间元组
+        date_str = time.strftime("%Y-%m-%d", date_touple)  # 将时间元组转成格式化字符串（1976-05-21）
         print(date_str)
         pub_date_dic[str(video_id)] = date_str
         changed = True
     if changed:
-        setConfig(visitor,{"pub_date_dic":pub_date_dic})
+        setConfig(visitor, {"pub_date_dic": pub_date_dic})
     return pub_date_dic.get(str(video_id))
 
 
@@ -79,65 +83,75 @@ def load_video_list(request):
     # 本函数仅在修改实验设置时使用，用于完全重置数据库视频设置
     import os
     import csv
-    #import cv2
+    # import cv2
     video_url_list = []
-    for path,dir_list,file_list in os.walk(r"/home/www/res/video"):
-        #print (file_list)
-        for file_name in file_list: 
-            #print(os.path.join(path, file_name) )
-            id = int(file_name.split("/")[-1].split("_")[0].replace("video",""))
-            #print(id)
-            video_url_list.append({"id":id,"url":"/video/"+file_name})
     
+    # 临时做法，因为COS上的视频列表和本地的列表完全相同，所以仍然用遍历文件夹的方式获取视频文件url
+    for path, dir_list, file_list in os.walk(r"/home/www/res/video"):
+        # print (file_list)
+        for file_name in file_list:
+            # print(os.path.join(path, file_name) )
+            id = int(file_name.split("/")[-1].split("_")[0].replace("video", ""))
+            # print(id)
+            video_url_list.append({"id": id, "url": "https://funtube-1259626356.cos.ap-shanghai.myqcloud.com/video/" + file_name})
+
     # 读取video.csv,根据ID读取视频
-    reader = csv.reader(open(r"/home/www/res/video.csv", "r",encoding="utf8"))
+    reader = csv.reader(open(r"/home/www/res/video.csv", "r", encoding="utf8"))
     id_col = 0
     title_col = 1
     cat_col = 2
     tag_col = 3
     video_info_list = []
-    #ad_col = 3
+    # ad_col = 3
     for item in reader:
         if reader.line_num == 1:
-            #print(item)
+            # print(item)
             id_col = item.index("id")
             title_col = item.index("title")
             cat_col = item.index("categories")
             tag_col = item.index("tags")
-            #ad_col = item.index("ad1")
+            # ad_col = item.index("ad1")
             continue
         try:
             id = int(item[id_col])
-        except: continue
+        except:
+            continue
         video_info_list.append({
-            "id":id,
-            "title":item[title_col],
-            "cat":item[cat_col].split(" "),
-            "tag":item[tag_col].split(" "),
+            "id": id,
+            "title": item[title_col],
+            "cat": item[cat_col].split(" "),
+            "tag": item[tag_col].split(" "),
         })
 
     ad_config_list = []
     # 读取 config.csv 为每个视频添加几种广告配置
-    reader2 = csv.reader(open(r"/home/www/res/config.csv", "r",encoding="utf8"))
+    reader2 = csv.reader(open(r"/home/www/res/config.csv", "r", encoding="utf8"))
     video_id_col = 0
     config_num_col = 1
     config_col = 2
     for item in reader2:
-        item = [ entry.replace(" ","").replace("\t","") for entry in item ]
+        item = [entry.replace(" ", "").replace("\t", "") for entry in item]
         if reader2.line_num == 1:
-            try:video_id_col = item.index("video_id")
-            except: pass
+            try:
+                video_id_col = item.index("video_id")
+            except:
+                pass
             config_num_col = item.index("config_num")
             config_col = item.index("config")
             continue
         try:
             video_id = int(item[video_id_col])
-        except: continue
+        except:
+            continue
         ad_config_list.append({
-            "video_id":video_id,
-            "config_num":item[config_num_col],
-            "config":item[config_col].replace("\'","\""),
+            "video_id": video_id,
+            "config_num": item[config_num_col],
+            "config": item[config_col].replace("\'", "\""),
         })
+
+    # 清理全部 video_tag 关系
+    for video_tag in Video_tag.objects.all():
+        video_tag.delete()
 
     # 将视频数据逐个在config中查询，最后取视频文件和视频信息都存在的视频作为最终结果（交集）
     # 已经存在的视频信息将会被保留或更改
@@ -145,17 +159,19 @@ def load_video_list(request):
         id = video_url["id"]
         for video_info in video_info_list:
             if video_info["id"] == id:
-                try: video = Video.objects.get(id=id)
-                except: 
+                try:
+                    video = Video.objects.get(id=id)
+                except:
                     video = Video()
                     video.video_id = video_info["id"]
                 video.title = video_info["title"]
                 video.url = video_url["url"]
-                video.cover_url = "/poster/poster_"+str(id)+".jpg"
+                video.cover_url = "https://funtube-1259626356.cos.ap-shanghai.myqcloud.com/poster/poster_" + str(id) + ".jpg"
                 video.save()
-                
+
                 for cat_title in video_info["cat"]:
-                    try: cat = Cat.objects.get(cat_title=cat_title)
+                    try:
+                        cat = Cat.objects.get(cat_title=cat_title)
                     except:
                         cat = Cat()
                         cat.cat_title = cat_title
@@ -164,9 +180,10 @@ def load_video_list(request):
                     video_cat.video = video
                     video_cat.cat = cat
                     video_cat.save()
-                
+
                 for tag_title in video_info["tag"]:
-                    try: tag = Tag.objects.get(tag_title=tag_title)
+                    try:
+                        tag = Tag.objects.get(tag_title=tag_title)
                     except:
                         tag = Tag()
                         tag.tag_title = tag_title
@@ -177,31 +194,31 @@ def load_video_list(request):
                     video_tag.save()
 
                 for ad_config_info in ad_config_list:
-                    if id==ad_config_info["video_id"]:
-                        try: ad_config = AdConfig.objects.get(video = video,config_num = ad_config_info["config_num"])
-                        except: ad_config = AdConfig()
+                    if id == ad_config_info["video_id"]:
+                        try:
+                            ad_config = AdConfig.objects.get(video=video, config_num=ad_config_info["config_num"])
+                        except:
+                            ad_config = AdConfig()
                         ad_config.video = video
                         ad_config.config_num = ad_config_info["config_num"]
                         ad_config.config = ad_config_info["config"]
                         ad_config.save()
-                print("added video, id =", id,"title =", video.title)
-    
+                print("added video, id =", id, "title =", video.title)
+
     # 加载全部广告文件
     ads = {}
-    for path,dir_list,file_list in os.walk(r"/home/www/res/ad"):
-        #print (file_list)
-        for file_name in file_list: 
-            #print(os.path.join(path, file_name) )
+    for path, dir_list, file_list in os.walk(r"/home/www/res/ad"):
+        # print (file_list)
+        for file_name in file_list:
+            # print(os.path.join(path, file_name) )
             if file_name.split(".")[1] in ['csv', 'json']: continue
-            id = int(file_name.split(".")[0].replace("ad_",""))
-            ads[id] = "/ad/"+file_name
-
-
+            id = int(file_name.split(".")[0].replace("ad_", ""))
+            ads[id] = "https://funtube-1259626356.cos.ap-shanghai.myqcloud.com/ad/" + file_name
 
     # 从广告配置文件中读取相关广告信息, 填充进广告数据中
     # 仅文件和信息都存在的广告才会被加载进去
     # 已经存在的广告信息将会被保留或更改
-    reader3 = csv.reader(open(r"/home/www/res/ad/ad_info.csv", "r",encoding="utf8"))
+    reader3 = csv.reader(open(r"/home/www/res/ad/ad_info.csv", "r", encoding="utf8"))
     for item in reader3:
         id = int(item[0])
         if ads.get(id):
@@ -210,7 +227,7 @@ def load_video_list(request):
             except:
                 ad = Ad()
                 ad.ad_id = item[0]
-            ad.src = ads.get(id) 
+            ad.src = ads.get(id)
             ad.href = item[1]
             ad.brand = item[2]
             ad.product = item[3]
@@ -227,30 +244,37 @@ def load_video_list(request):
     #     video_path = "/home/www/res/video/" + video.url.split("/")[-1]
 
     # 读取全部镜头信息
-    for path,dir_list,file_list in os.walk(r"/home/www/res/video_shot_csv"):
+    for shot in Shot.objects.all():
+        shot.delete()
+    for path, dir_list, file_list in os.walk(r"/home/www/res/video_shot_csv"):
         for file_name in file_list:
-            id = int(file_name.split("/")[-1].split("_")[0].replace("video",""))
-            video = Video.objects.get(video_id = id)
+            id = int(file_name.split("/")[-1].split("_")[0].replace("video", ""))
+            video = Video.objects.get(video_id=id)
             # 读取 _shot.csv, 获取全部镜头信息
-            reader = csv.reader(open(r"/home/www/res/video_shot_csv/"+file_name, "r",encoding="utf8"))
-            v_length = pd.read_csv(r"/home/www/res/video_shot_csv/"+file_name).iloc[-1]["end_time"]
+            reader = csv.reader(open(r"/home/www/res/video_shot_csv/" + file_name, "r", encoding="utf8"))
+            v_length = pd.read_csv(r"/home/www/res/video_shot_csv/" + file_name).iloc[-1]["end_time"]
 
             for item in reader:
                 # print(item[3])
                 if reader.line_num == 1: continue
                 START_TIME_COL = 2
                 END_TIME_COL = 3
+                SHOT_ID_COL = 0
 
                 end_time = float(item[END_TIME_COL])
-                shot = Shot(video=video, end_time = end_time)
+                local_shot_id = (item[SHOT_ID_COL])
+                shot = Shot(
+                    video=video,
+                    end_time=end_time,
+                    local_shot_id=local_shot_id,
+                )
                 shot.save()
-            
+
             video.length = v_length
             video.save()
 
+    return JsonResponse({"status": "success"})
 
-
-    return JsonResponse({"status":"success"})
 
 @require_http_methods(["POST"])
 def new_session(request):
@@ -259,11 +283,11 @@ def new_session(request):
     body_dict = json.loads(request.body.decode('utf-8'))
     pid = body_dict.get("pid")
     player_type = body_dict.get("player_type")
-    client = body_dict.get("client",0)
-    video_id = body_dict.get("video_id") # 在问卷访问情况下会忽略 vide_id, 在其余情况下必须提供有效id
+    client = body_dict.get("client", 0)
+    video_id = body_dict.get("video_id")  # 在问卷访问情况下会忽略 video_id, 在其余情况下必须提供有效id
     is_new_visitor = True
     try:
-        if pid: 
+        if pid:
             # 如果pid查找到了该用户
             visitor = Visitor.objects.get(pid=pid)
         else:
@@ -271,35 +295,35 @@ def new_session(request):
             visitor = Visitor.objects.get(pk=visitor_id)
         # 如果两种方式都没有获取到用户，进入exception，以下代码不会被执行
         is_new_visitor = False
-        
+
     except:
         # 如果有pid但没有对应用户，或者没有pid并且visitor_id也不对应用户，那么创建用户
         token = token_urlsafe(TOKEN_LENGTH)
         # 无论新用户来自哪个来源,都要给该用户分配一个问卷专用的视频
-        #video_list = Video.objects.filter(client=0)
-        video = Video.objects.get(pk=1)
+        # video_list = Video.objects.filter(client=0)
+        # video = Video.objects.get(pk=1)
         visitor = Visitor()
-        #visitor.visitor_id = visitor_id
+        # visitor.visitor_id = visitor_id
         # 无论新用户来自哪个来源,都要给该用户分配一个广告配置版本 1/2/3/4
         visitor.save()
-        #visitor.config_num = visitor.visitor_id%4 + 1
+        # visitor.config_num = visitor.visitor_id%4 + 1
         visitor.token = token
-        #visitor.video = video
+        # visitor.video = video
         visitor.pid = pid
-        visitor.save()
+        visitor.save(update_fields=["token", "pid"])
         # 全部广告放入备选
         for ad in Ad.objects.all():
             if ad.ad_id != 1:
                 visitor.ads_candidate.add(ad)
         visitor.save()
         # 随机分配一个初始广告
-        ad_to_show = random.sample(list(visitor.ads_candidate.all()),1)[0]
+        ad_to_show = random.sample(list(visitor.ads_candidate.all()), 1)[0]
         visitor.ad_to_show = ad_to_show
         visitor.ads_candidate.remove(ad_to_show)
         visitor.save()
-        
+
     # 现在确保有了 visitor 对象
-    if client==1:
+    if client == 1:
         # 如果用户来自于问卷
         try:
             # 如果请求中指定了一个有效video,则使用这个video，并且更新用户的video分配状况
@@ -315,33 +339,36 @@ def new_session(request):
                 # 如果未指定视频，获取该用户的默认视频
                 video = visitor.video
     else:
-        #print("request for video",video_id)
+        # print("request for video",video_id)
         # 如果用户来自于主站,则请求中要求包含有效的 video_id 参数
-        try: video = Video.objects.get(pk=video_id)
-        except: 
-            try: video = Video.objects.get(pk=int(video_id))
+        try:
+            video = Video.objects.get(pk=video_id)
+        except:
+            try:
+                video = Video.objects.get(pk=int(video_id))
             except:
                 # 如果不包含，则视为净注册一个用户而不开始session
                 response = JsonResponse({
-                    "is_new_visitor":is_new_visitor,
-                    "visitor_id":visitor.visitor_id,
-                    "create_time":visitor.created_time,
-                    #"config_num":visitor.config_num,
+                    "is_new_visitor": is_new_visitor,
+                    "visitor_id": visitor.visitor_id,
+                    "create_time": visitor.created_time,
+                    # "config_num":visitor.config_num,
                 })
                 response.set_cookie("token", visitor.token)
                 response.set_cookie("visitor_id", visitor.visitor_id)
                 return response
+
     # 现在确保有了 visitor 对象和 video 对象
     session = Session()
-    #session_id = uuid.uuid4()
-    #session.session_id = session_id
+    # session_id = uuid.uuid4()
+    # session.session_id = session_id
     session.visitor = visitor
-    session.video = video # 给当前 session 赋予同样的 video
+    session.video = video  # 给当前 session 赋予同样的 video
     session.pid = pid
     session.player_type = player_type
     session.save()
-    #print(video,visitor.config_num)
-    
+    # print(video,visitor.config_num)
+
     # 生成广告方案
 
     # 方案1，配置文件预先存入数据表，每个【视频+方案号】对应一个方案详情，一个访客拥有一个方案号
@@ -371,7 +398,7 @@ def new_session(request):
     # 方案3 每个视频里只插播一个广告，位点固定，具体是哪个广告留给其他接口决定
     ads = []
     # 先在用户 config 中查找当前视频是否有广告方案记录
-    all_ad_config = getConfig(visitor,"ad_config")
+    all_ad_config = getConfig(visitor, "ad_config")
     if all_ad_config:
         curr_ad_config = all_ad_config.get(str(video.video_id), [])
     else:
@@ -383,11 +410,13 @@ def new_session(request):
         print(all_ad_config.keys())
     else:
         # 如果对应的视频没有记录，则随机生成广告方案，并存入用户设置
-        ads = generagte_random_ads(video.video_id,1)
-        ads[0]["ad_id"] = "auto"; ads[0]["src"] = "auto"
+        ads = generagte_random_ads(video.video_id, 1)
+        # ads[0]["ad_id"] = "auto"
+        # ads[0]["href"] = "auto"
+        # ads[0]["src"] = "auto"
         all_ad_config[video.video_id] = ads
         print(all_ad_config)
-        setConfig(visitor,{"ad_config":all_ad_config})
+        setConfig(visitor, {"ad_config": all_ad_config})
 
     session.ad_config = ads
     session.save()
@@ -395,31 +424,33 @@ def new_session(request):
     #     ad = Ad.objects.get(ad_id=ad_info["ad_id"])
     #     ad_info.update(url = ad.href)
     response = JsonResponse({
-        "is_new_visitor":is_new_visitor,
-        "visitor_id":visitor.visitor_id,
-        "session_id":session.session_id,
-        "create_time":visitor.created_time,
-        "videos":[{
+        "is_new_visitor": is_new_visitor,
+        "visitor_id": visitor.visitor_id,
+        "session_id": session.session_id,
+        "create_time": visitor.created_time,
+        "videos": [{
             "video_id": video.video_id,
             "title": video.title,
             "url": video.url,
             "cover_url": video.cover_url,
-            #"svi_raw": [float(i) for i in video.svi_raw.split(' ')],
-            "created_time": getPubDate(visitor,video.video_id),
-            "description":video.description,
-            "ads":ads,
-        } for video in [video] ],
-        "views":getViewNum(visitor,video.video_id)
+            # "svi_raw": [float(i) for i in video.svi_raw.split(' ')],
+            "created_time": getPubDate(visitor, video.video_id),
+            "description": video.description,
+            "ads": ads,
+        } for video in [video]],
+        "views": getViewNum(visitor, video.video_id)
     })
     response.set_cookie("token", visitor.token)
     response.set_cookie("visitor_id", visitor.visitor_id)
     return response
+
 
 def logout(request):
     response = HttpResponse("video add success")
     response.set_cookie("token", None)
     response.set_cookie("visitor_id", None)
     return response
+
 
 @require_http_methods(["POST"])
 def add_video(request):
@@ -429,44 +460,45 @@ def add_video(request):
     video.title = body_dict.get("title")
     video.url = body_dict.get("url")
     video.cover_url = body_dict.get("cover_url")
-    video.svi_raw = ' '.join([ str(i) for i in body_dict.get("svi_raw")])
+    video.svi_raw = ' '.join([str(i) for i in body_dict.get("svi_raw")])
     # auto created_time
     video.created_time = datetime.datetime.now()
-    video.description=body_dict.get("description","该视频没有描述")
-    video.client = body_dict.get("client",0)
+    video.description = body_dict.get("description", "该视频没有描述")
+    video.client = body_dict.get("client", 0)
     video.save()
     return HttpResponse("video add success")
+
 
 @require_http_methods(["POST"])
 def new_event(request):
     body_dict = json.loads(request.body.decode('utf-8'))
     pid = body_dict.get("pid")
-    if pid:
-        try: visitor = Visitor.objects.get(pid=pid)
-        except: return HttpResponse("visitor DNE",status=401)
-    else:
-        token = request.COOKIES.get("token")
-        visitor_id = request.COOKIES.get("visitor_id")
-        try: visitor:Visitor = Visitor.objects.get(pk=visitor_id)
-        except: return HttpResponse("visitor DNE",status=401)
-    event = Event()
-    #event_id = uuid.uuid4()
-    #event.event_id = event_id
+
+    
+    # event_id = uuid.uuid4()
+    # event.event_id = event_id
     session_id = body_dict.get("session_id")
     video_info = body_dict.get("video_info")
-    buffered = body_dict.get("buffered",0)
-    try: buffered = int(buffered)
-    except: buffered = 0
-    #print(session_id)
-    try: session:Session = Session.objects.get(pk=session_id)
-    except: return HttpResponse("session DNE",status=402)
-    event.session = session
+    buffered = body_dict.get("buffered", 0)
+
+    event = Event(session_id=session_id) # 通过直接设置id来减少一次数据库查询
+    # try:
+    #     buffered = int(buffered)
+    # except:
+    #     buffered = 0
+    # # print(session_id)
+    # try:
+    #     session: Session = Session.objects.get(pk=session_id)
+    # except:
+    #     return HttpResponse("session DNE", status=402)
+
+    # event.session = session
     event.video_info = video_info
     event.label = body_dict.get("label")
     event.description = body_dict.get("description")
     raw_timestamp = body_dict.get("timestamp")
-    #print ("\n\n",video_info,"\n\n")
-    timestamp = timezone.now()#timezone.fromtimestamp(float(raw_timestamp/1000))
+    # print ("\n\n",video_info,"\n\n")
+    timestamp = timezone.now()  # timezone.fromtimestamp(float(raw_timestamp/1000))
     event.timestamp = timestamp
     event.video_time = float(body_dict.get("video_time"))
     event.volume = float(body_dict.get("volume"))
@@ -478,28 +510,52 @@ def new_event(request):
     event.player_width = int(body_dict.get("player_width"))
     event.save()
 
-    if video_info.split('_')[0]=='ad':
-        ad_id = int( video_info.split('_')[1] )
-        ad:Ad = Ad.objects.get(ad_id = ad_id)
+    # 如果这个visitor遇到了广告，对visitor的ad_to_show和ad_candidate进行更新
+    if video_info.split('_')[0] == 'ad':
+        # visitor是否存在，若存在，取出
+        if pid:
+            try:
+                visitor = Visitor.objects.get(pid=pid)
+            except:
+                return HttpResponse("visitor DNE", status=401)
+        else:
+            token = request.COOKIES.get("token")
+            visitor_id = request.COOKIES.get("visitor_id")
+            try:
+                visitor: Visitor = Visitor.objects.get(pk=visitor_id)
+            except:
+                return HttpResponse("visitor DNE", status=401)
+
+        try:
+            session: Session = Session.objects.get(pk=session_id)
+        except:
+            return HttpResponse("session DNE", status=402)
+
+        # return HttpResponse(session)
+
+        ad_id = int(video_info.split('_')[1])
+        ad: Ad = Ad.objects.get(ad_id=ad_id)
         # 如果是新的ad,那么增加观看记录，更新用户的 ad_to_show
-        #if not ad in list(visitor.ads.all()):
+        # if not ad in list(visitor.ads.all()):
         # print("new add visited")
         visitor.ads.add(ad)
         session.ads.add(ad)
+        session.save()
+
         if visitor.ads_candidate.count() > 0:
-            ad_to_show = random.sample(list(visitor.ads_candidate.all()),1)[0]
+            ad_to_show = random.sample(list(visitor.ads_candidate.all()), 1)[0]
             visitor.ad_to_show = ad_to_show
-            visitor.save()
+            visitor.save(update_fields=["ads_candidate", "ads", "ad_to_show"])
             # 只有第一次看到广告才排除这个广告及其竞争者
-            if visitor.ads_candidate.count() > (Ad.objects.count()-3):
-                print("Removing first ad and its cpmpetitor")
+            if visitor.ads_candidate.count() > (Ad.objects.count() - 3):
+                # print("Removing first ad and its cpmpetitor")
                 visitor.ads_candidate.remove(ad_to_show)
                 # 移除竞争者
-                print(ad.cb)
+                # print(ad.cb)
                 comp = Ad.objects.get(ad_id=ad.cb.split('_')[1])
                 visitor.ads_candidate.remove(comp)
-                visitor.save()
-                print(visitor.ads_candidate.all())
+                visitor.save(update_fields=["ads_candidate", "ads", "ad_to_show"])
+                # print(visitor.ads_candidate.all())
             # else do nothing
         # Never have "else". "Count>0" is just for insurance.
         # else:
@@ -507,60 +563,72 @@ def new_event(request):
 
     return HttpResponse("event saved")
 
-@require_http_methods(["GET","POST"])
+
+@require_http_methods(["GET", "POST"])
 def get_video_list(request):
     # 获取当前访客身份 visitor:Visitor
     body_dict = json.loads(request.body.decode('utf-8'))
     pid = body_dict.get("pid")
     if pid:
-        try: visitor = Visitor.objects.get(pid=pid)
-        except: return HttpResponse("visitor DNE",status=401)
+        try:
+            visitor = Visitor.objects.get(pid=pid)
+        except:
+            return HttpResponse("visitor DNE", status=401)
     else:
         token = request.COOKIES.get("token")
         visitor_id = request.COOKIES.get("visitor_id")
-        try: visitor = Visitor.objects.get(pk=visitor_id)
-        except: return HttpResponse("visitor DNE",status=401)
+        try:
+            visitor = Visitor.objects.get(pk=visitor_id)
+        except:
+            return HttpResponse("visitor DNE", status=401)
     # 获取视频列表
-    video_list_ids = getConfig(visitor,"video_list")
-    if(video_list_ids):
-        video_list = [ Video.objects.get(video_id=vid) for vid in video_list_ids ]
+    video_list_ids = getConfig(visitor, "video_list")
+    if video_list_ids:
+        video_list = [Video.objects.get(video_id=vid) for vid in video_list_ids]
     else:
         video_list = list(Video.objects.all())
         random.shuffle(video_list)
-        video_list_ids = [ video.video_id for video in video_list ]
-        setConfig(visitor,{"video_list":video_list_ids})
+        video_list_ids = [video.video_id for video in video_list]
+        setConfig(visitor, {"video_list": video_list_ids})
 
     return JsonResponse({
-        "result":[{
+        "result": [{
             "video_id": video.video_id,
             "title": video.title,
             "url": video.url,
             "cover_url": video.cover_url,
-            #"svi_raw": [float(i) for i in video.svi_raw.split(' ')],
-            "created_time": getPubDate(visitor,video.video_id),
-            "description":video.description,
-            "views":getViewNum(visitor,video.video_id),
-        } for video in video_list ]
+            # "svi_raw": [float(i) for i in video.svi_raw.split(' ')],
+            "created_time": getPubDate(visitor, video.video_id),
+            "description": video.description,
+            "views": getViewNum(visitor, video.video_id),
+        } for video in video_list]
     })
 
+
 @require_http_methods(["GET"])
-def get_video_by_tag(request,cat_id):
+def get_video_by_tag(request, cat_id):
     # 获取当前访客身份 visitor:Visitor
     pid = request.GET.get("pid")
     if pid:
-        try: visitor = Visitor.objects.get(pid=pid)
-        except: return HttpResponse("visitor DNE",status=401)
+        try:
+            visitor = Visitor.objects.get(pid=pid)
+        except:
+            return HttpResponse("visitor DNE", status=401)
     else:
         token = request.COOKIES.get("token")
         visitor_id = request.COOKIES.get("visitor_id")
-        try: visitor = Visitor.objects.get(pk=visitor_id)
-        except: return HttpResponse("visitor DNE",status=401)
+        try:
+            visitor = Visitor.objects.get(pk=visitor_id)
+        except:
+            return HttpResponse("visitor DNE", status=401)
     # 获取视频列表
-    try:cat_id = int(cat_id)
-    except: cat_id = 0
-    if cat_id!=0:
+    try:
+        cat_id = int(cat_id)
+    except:
+        cat_id = 0
+    if cat_id != 0:
         cat = Cat.objects.get(cat_id=cat_id)
-        video_lists_by_cat = getConfig(visitor,"video_lists_by_cat")
+        video_lists_by_cat = getConfig(visitor, "video_lists_by_cat")
         if video_lists_by_cat:
             cat_video_list_ids = video_lists_by_cat.get(cat.cat_title)
         else:
@@ -568,50 +636,49 @@ def get_video_by_tag(request,cat_id):
             cat_video_list_ids = None
 
         if cat_video_list_ids:
-            cat_video_list = [ Video.objects.get(video_id=vid) for vid in cat_video_list_ids ]
+            cat_video_list = [Video.objects.get(video_id=vid) for vid in cat_video_list_ids]
         else:
-            cat_video_list = [ video_cat.video for video_cat in Video_cat.objects.filter(cat_id=cat_id) ]
+            cat_video_list = [video_cat.video for video_cat in Video_cat.objects.filter(cat_id=cat_id)]
             random.shuffle(cat_video_list)
-            cat_video_list_ids = [ video.video_id for video in cat_video_list ]
+            cat_video_list = list(set(cat_video_list))
+            cat_video_list_ids = [video.video_id for video in cat_video_list]
             video_lists_by_cat[cat.cat_title] = cat_video_list_ids
-            setConfig(visitor,{"video_lists_by_cat":video_lists_by_cat})
-
-        
+            setConfig(visitor, {"video_lists_by_cat": video_lists_by_cat})
 
         return JsonResponse({
-            "title":cat.cat_title,
-            "videos":[{
+            "title": cat.cat_title,
+            "videos": [{
                 "video_id": video.video_id,
                 "title": video.title,
                 "url": video.url,
                 "cover_url": video.cover_url,
-                #"svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
-                "created_time": getPubDate(visitor,video.video_id),
+                # "svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
+                "created_time": getPubDate(visitor, video.video_id),
                 "description": video.description,
-                "views":getViewNum(visitor,video.video_id),
-            }for video in cat_video_list ]
+                "views": getViewNum(visitor, video.video_id),
+            } for video in cat_video_list]
         })
     else:
-        video_list_ids = getConfig(visitor,"video_list")
-        if(video_list_ids):
-            video_list = [ Video.objects.get(pk=vid) for vid in video_list_ids ]
+        video_list_ids = getConfig(visitor, "video_list")
+        if (video_list_ids):
+            video_list = [Video.objects.get(pk=vid) for vid in video_list_ids]
         else:
             video_list = list(Video.objects.all())
             random.shuffle(video_list)
-            video_list_ids = [ video.video_id for video in video_list ]
-            setConfig(visitor,{"video_list":video_list_ids})
+            video_list_ids = [video.video_id for video in video_list]
+            setConfig(visitor, {"video_list": video_list_ids})
         return JsonResponse({
-            "title":"全部视频",
-            "videos":[{
+            "title": "全部视频",
+            "videos": [{
                 "video_id": video.video_id,
                 "title": video.title,
                 "url": video.url,
                 "cover_url": video.cover_url,
-                #"svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
-                "created_time": getPubDate(visitor,video.video_id),
+                # "svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
+                "created_time": getPubDate(visitor, video.video_id),
                 "description": video.description,
-                "views":getViewNum(visitor,video.video_id),
-            }for video in video_list ]
+                "views": getViewNum(visitor, video.video_id),
+            } for video in video_list]
         })
 
 
@@ -620,15 +687,18 @@ def add_video_tag(request):
     body_dict = json.loads(request.body.decode('utf-8'))
     tag_title = body_dict.get("tag_title")
     video_id = body_dict.get("video_id")
-    if(tag_title and video_id):
-        try: tag = Tag.objects.get(tag_title=tag_title)
+    if (tag_title and video_id):
+        try:
+            tag = Tag.objects.get(tag_title=tag_title)
         except:
             tag = Tag()
             tag.tag_title = tag_title
             tag.tag_id = uuid.uuid4()
             tag.save()
-        try: video = Video.objects.get(pk=video_id)
-        except: return HttpResponse(status=404)
+        try:
+            video = Video.objects.get(pk=video_id)
+        except:
+            return HttpResponse(status=404)
         video_tag = Video_tag()
         video_tag.video_tag_id = uuid.uuid4()
         video_tag.tag = tag
@@ -636,34 +706,40 @@ def add_video_tag(request):
         video_tag.save()
     return HttpResponse("Save successfully")
 
+
 def getSuggestion(request):
-    video_id = request.GET.get("vid",None)
+    video_id = request.GET.get("vid", None)
     # video_list = list(Video.objects.all())
     # for video in video_list:
     #     if str(video.video_id) == video_id:
     #         video_list.remove(video)
 
-    #video_list = random.sample(video_list,4)
+    # video_list = random.sample(video_list,4)
 
     # 获取当前访客身份 visitor:Visitor
     pid = request.GET.get("pid")
     if pid:
-        try: visitor = Visitor.objects.get(pid=pid)
-        except: return HttpResponse("visitor DNE",status=401)
+        try:
+            visitor = Visitor.objects.get(pid=pid)
+        except:
+            return HttpResponse("visitor DNE", status=401)
     else:
         token = request.COOKIES.get("token")
         visitor_id = request.COOKIES.get("visitor_id")
-        try: visitor = Visitor.objects.get(pk=visitor_id)
-        except: return HttpResponse("visitor DNE",status=401)
+        try:
+            visitor = Visitor.objects.get(pk=visitor_id)
+        except:
+            return HttpResponse("visitor DNE", status=401)
 
-    video_list_ids = getConfig(visitor,"video_list")
-    if(video_list_ids):
-        video_list = [ Video.objects.get(pk=vid) for vid in video_list_ids ]
+    video_list_ids = getConfig(visitor, "video_list")
+    video_list = list(Video.objects.all())
+    if (video_list_ids):
+        video_list_temp = [video_list[vid - 1] for vid in video_list_ids]
+        video_list = video_list_temp
     else:
-        video_list = list(Video.objects.all())
         random.shuffle(video_list)
-        video_list_ids = [ video.video_id for video in video_list ]
-        setConfig(visitor,{"video_list":video_list_ids})
+        video_list_ids = [video.video_id for video in video_list]
+        setConfig(visitor, {"video_list": video_list_ids})
     for video in video_list:
         if str(video.video_id) == video_id:
             video_list.remove(video)
@@ -672,89 +748,102 @@ def getSuggestion(request):
         "title": video.title,
         "url": video.url,
         "cover_url": video.cover_url,
-        #"svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
-        "created_time": getPubDate(visitor,video.video_id),
+        # "svi_raw": [float(i) for i in video_cat.video.svi_raw.split(' ')],
+        "created_time": getPubDate(visitor, video.video_id),
         "description": video.description,
-        "views":getViewNum(visitor,video.video_id),
-    }for video in video_list ]
+        "views": getViewNum(visitor, video.video_id),
+    } for video in video_list]
 
     return JsonResponse({
-        "result":result
+        "result": result
     })
+
 
 def getCategories(request):
     cat_list = Cat.objects.all()
     result = [{
-        "cat_id":cat.cat_id,
-        "cat_title":cat.cat_title,
+        "cat_id": cat.cat_id,
+        "cat_title": cat.cat_title,
     } for cat in cat_list]
-    
+
     return JsonResponse({
-        "result":result,
+        "result": result,
     })
+
 
 def getHistory(request):
     pid = request.GET.get('pid')
     try:
         visitor = Visitor.objects.get(pid=pid)
     except:
-        return JsonResponse({"result":[]})
+        return JsonResponse({"result": []})
     sessions = Session.objects.filter(visitor=visitor)
-    viewed_ids = [ session.video.video_id for session in sessions]
+    viewed_ids = [session.video.video_id for session in sessions]
 
     result = [{
         "video_id": video.video_id,
-        "title":video.title,
+        "title": video.title,
         "viewed": 1 if (video.video_id in viewed_ids) else 0,
     } for video in Video.objects.all()]
 
-    response = JsonResponse({"result":result})
+    response = JsonResponse({"result": result})
 
     response["Access-Control-Allow-Origin"] = "*"
 
     return response
+
 
 def getViewedAds(request):
     pid = request.GET.get('pid')
     try:
         visitor = Visitor.objects.get(pid=pid)
-        ads = visitor.ads.all()
+        # ads = visitor.ads.all()
+        ads = []
+        sessions = list(visitor.session_set.all().order_by('start_time'))
+        for session in sessions:
+            print(session)
+            if session.ads.count() >= 1:
+                print(session.ads)
+                ads.append(session.ads.all()[0])
+                break
     except:
-        ads=[]
+        ads = []
 
-    if len(list(ads))<= 0:
+    if len(list(ads)) <= 0:
         ads = [Ad.objects.get(pk=1)]
-        
+
     result = [{
-        "ad_id":ad.ad_id,
+        "ad_id": ad.ad_id,
         "brand": ad.brand,
         "product": ad.product,
         "cp": ad.cp_name,
-        "dp":ad.dp_name,
+        "dp": ad.dp_name,
         "cb": ad.cb_name,
-        "db":ad.db_name,
+        "db": ad.db_name,
         "cb_src": ad.cb,
-        "db_src":ad.db,
+        "db_src": ad.db,
     } for ad in ads]
 
-    response = JsonResponse({"result":result})
+    response = JsonResponse({"result": result})
 
     response["Access-Control-Allow-Origin"] = "*"
 
     return response
 
-def getAdPlan(request):
 
+def getAdPlan(request):
     token = request.COOKIES.get("token")
     visitor_id = request.COOKIES.get("visitor_id")
-    try: visitor:Visitor = Visitor.objects.get(pk=visitor_id)
-    except: return HttpResponse("visitor DNE",status=401)
+    try:
+        visitor: Visitor = Visitor.objects.get(pk=visitor_id)
+    except:
+        return HttpResponse("visitor DNE", status=401)
 
-    ad_to_show:Ad = visitor.ad_to_show
+    ad_to_show: Ad = visitor.ad_to_show
     if not ad_to_show:
-        ad_to_show = random.sample(list(Ad.objects.all()),1)[0]
+        ad_to_show = random.sample(list(Ad.objects.all()), 1)[0]
         visitor.ad_to_show = ad_to_show
-        visitor.save()
+        visitor.save(update_fields=["ad_to_show"])
     print({
         "ad_id": ad_to_show.ad_id,
         "src": ad_to_show.src,
@@ -766,31 +855,37 @@ def getAdPlan(request):
         "href": ad_to_show.href,
     })
 
+
 def listAllVisitors(request):
     filter = request.GET.get("filter")
-    result:QuerySet = Visitor.objects.all()
+    result: QuerySet = Visitor.objects.all()
     if filter == "has_pid":
-        result:QuerySet = result.filter(pid__isnull=False)
-    return JsonResponse({"result":[
+        result: QuerySet = result.filter(pid__isnull=False)
+    return JsonResponse({"result": [
         {
             "visitor_id": visitor.visitor_id,
             "pid": visitor.pid,
             "created_time": visitor.created_time,
         }
-    for visitor in result]})
+        for visitor in result]})
+
 
 def showVisitorInfo(request, pid):
     try:
         visitor = Visitor.objects.get(pid=pid)
     except:
-        return JsonResponse({"error":"Visitor with requested PID not found."})
+        return JsonResponse({"error": "Visitor with requested PID not found."})
     else:
-        
-        config = json.loads(visitor.config)
+        if visitor.config:
+            config = json.loads(visitor.config)
+        else:
+            config = {}
         ad_config = config.get("ad_config")
+        if not ad_config:
+            ad_config = {}
         for key in ad_config.keys():
             ads = ad_config[key]
-            ads = [{"time":ad["time"]} for ad in ads]
+            ads = [{"time": ad["time"], "local_shot_id": ad.get('local_shot_id')} for ad in ads]
             ad_config[key] = ads
         config["ad_config"] = ad_config
 
@@ -812,27 +907,27 @@ def showVisitorInfo(request, pid):
             #         "db_src":ad.db,
             #     }
             # for ad in visitor.ads.all()],
-            "sessions":[
+            "sessions": [
                 {
                     "session_id": session.session_id,
                     "video": {
                         "video_id": session.video.video_id,
                         "title": session.video.title,
-                        "created_time": getPubDate(visitor,session.video.video_id),
+                        "created_time": getPubDate(visitor, session.video.video_id),
                     },
                     # "ad_config": json.loads(session.ad_config.replace('\'','\"')),
-                    "ads":[{
-                        "ad_id":ad.ad_id,
+                    "ads": [{
+                        "ad_id": ad.ad_id,
                         "brand": ad.brand,
                         "product": ad.product,
                         "cp": ad.cp_name,
-                        "dp":ad.dp_name,
+                        "dp": ad.dp_name,
                         "cb": ad.cb_name,
-                        "db":ad.db_name,
+                        "db": ad.db_name,
                         "cb_src": ad.cb,
-                        "db_src":ad.db,
+                        "db_src": ad.db,
                     } for ad in session.ads.all()],
-                    "start_time":session.start_time,
+                    "start_time": session.start_time,
                     # "events": [
                     #     {
                     #         "event_id":event.event_id,
@@ -850,5 +945,5 @@ def showVisitorInfo(request, pid):
                     #     }
                     # for event in Event.objects.filter(session=session)]
                 }
-            for session in Session.objects.filter(visitor=visitor)]
+                for session in Session.objects.filter(visitor=visitor)]
         })
