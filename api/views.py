@@ -85,7 +85,7 @@ def load_video_list(request):
     import csv
     # import cv2
     video_url_list = []
-    
+
     # 临时做法，因为COS上的视频列表和本地的列表完全相同，所以仍然用遍历文件夹的方式获取视频文件url
     for path, dir_list, file_list in os.walk(r"/home/www/res/video"):
         # print (file_list)
@@ -93,7 +93,8 @@ def load_video_list(request):
             # print(os.path.join(path, file_name) )
             id = int(file_name.split("/")[-1].split("_")[0].replace("video", ""))
             # print(id)
-            video_url_list.append({"id": id, "url": "https://funtube-1259626356.cos.ap-shanghai.myqcloud.com/video/" + file_name})
+            video_url_list.append(
+                {"id": id, "url": "https://funtube-1259626356.cos.ap-shanghai.myqcloud.com/video/" + file_name})
 
     # 读取video.csv,根据ID读取视频
     reader = csv.reader(open(r"/home/www/res/video.csv", "r", encoding="utf8"))
@@ -166,7 +167,8 @@ def load_video_list(request):
                     video.video_id = video_info["id"]
                 video.title = video_info["title"]
                 video.url = video_url["url"]
-                video.cover_url = "https://funtube-1259626356.cos.ap-shanghai.myqcloud.com/poster/poster_" + str(id) + ".jpg"
+                video.cover_url = "https://funtube-1259626356.cos.ap-shanghai.myqcloud.com/poster/poster_" + str(
+                    id) + ".jpg"
                 video.save()
 
                 for cat_title in video_info["cat"]:
@@ -319,7 +321,6 @@ def new_session(request):
         # 随机分配一个初始广告
         ad_to_show = random.sample(list(visitor.ads_candidate.all()), 1)[0]
         visitor.ad_to_show = ad_to_show
-        visitor.ads_candidate.remove(ad_to_show)
         visitor.save()
 
     # 现在确保有了 visitor 对象
@@ -347,11 +348,13 @@ def new_session(request):
             try:
                 video = Video.objects.get(pk=int(video_id))
             except:
-                # 如果不包含，则视为净注册一个用户而不开始session
+                # 如果不包含，则视为净注册一个用户而不开始session -- 这对应了访问主页，用户尚未点击视频
                 response = JsonResponse({
                     "is_new_visitor": is_new_visitor,
                     "visitor_id": visitor.visitor_id,
                     "create_time": visitor.created_time,
+                    "visitor_ad_to_show": visitor.ad_to_show.ad_id,  # for testing
+                    "visitor_ad_candidate": [ad.ad_id for ad in list(visitor.ads_candidate.all())]  # for testing
                     # "config_num":visitor.config_num,
                 })
                 response.set_cookie("token", visitor.token)
@@ -396,29 +399,46 @@ def new_session(request):
     #     setConfig(visitor,{"ad_config":all_ad_config})
 
     # 方案3 每个视频里只插播一个广告，位点固定，具体是哪个广告留给其他接口决定
-    ads = []
     # 先在用户 config 中查找当前视频是否有广告方案记录
+    #
+    # all_ad_config = getConfig(visitor, "ad_config")
+    # temp_ad_config = getConfig(visitor, "ad_config")
+    # if all_ad_config:
+    #     curr_ad_config = all_ad_config.get(str(video.video_id), [])
+    # else:
+    #     curr_ad_config = []
+    #     all_ad_config = {}
+    # if curr_ad_config and len(curr_ad_config) > 0:
+    #     # 如果有
+    #     curr_ad_config[0].update(href=visitor.ad_to_show.href, src=visitor.ad_to_show.src, ad_id=visitor.ad_to_show.ad_id)
+    #     all_ad_config[video.video_id] = curr_ad_config
+    #     setConfig(visitor, {"ad_config": all_ad_config})
+    # else:
+    #     # 如果对应的视频没有记录，则随机生成广告方案，并存入用户设置
+    #     curr_ad_config = generagte_random_ads(video.video_id, 1)
+    #     curr_ad_config[0].update(href=visitor.ad_to_show.href, src=visitor.ad_to_show.src, ad_id=visitor.ad_to_show.ad_id)
+    #     all_ad_config[video.video_id] = curr_ad_config
+    #     setConfig(visitor, {"ad_config": all_ad_config})
+
     all_ad_config = getConfig(visitor, "ad_config")
-    if all_ad_config:
-        curr_ad_config = all_ad_config.get(str(video.video_id), [])
-    else:
-        curr_ad_config = []
+    temp_ad_config = getConfig(visitor, "ad_config")
+    if not all_ad_config:
         all_ad_config = {}
-    if curr_ad_config and len(curr_ad_config) > 0:
+    curr_ad_config = all_ad_config.get(str(video.video_id), [])
+    # check if the session contains a video that the visitor has never visited before
+    if len(curr_ad_config) > 0:
         # 如果有
-        ads = curr_ad_config
-        print(all_ad_config.keys())
+        curr_ad_config[0].update(href=visitor.ad_to_show.href, src=visitor.ad_to_show.src, ad_id=visitor.ad_to_show.ad_id)
+        all_ad_config[video.video_id] = curr_ad_config
+        setConfig(visitor, {"ad_config": all_ad_config})
     else:
         # 如果对应的视频没有记录，则随机生成广告方案，并存入用户设置
-        ads = generagte_random_ads(video.video_id, 1)
-        # ads[0]["ad_id"] = "auto"
-        # ads[0]["href"] = "auto"
-        # ads[0]["src"] = "auto"
-        all_ad_config[video.video_id] = ads
-        print(all_ad_config)
+        curr_ad_config = generagte_random_ads(video.video_id, 1)
+        curr_ad_config[0].update(href=visitor.ad_to_show.href, src=visitor.ad_to_show.src, ad_id=visitor.ad_to_show.ad_id)
+        all_ad_config[video.video_id] = curr_ad_config
         setConfig(visitor, {"ad_config": all_ad_config})
 
-    session.ad_config = ads
+    session.ad_config = curr_ad_config
     session.save()
     # for ad_info in ads:
     #     ad = Ad.objects.get(ad_id=ad_info["ad_id"])
@@ -436,9 +456,13 @@ def new_session(request):
             # "svi_raw": [float(i) for i in video.svi_raw.split(' ')],
             "created_time": getPubDate(visitor, video.video_id),
             "description": video.description,
-            "ads": ads,
+            "ads": curr_ad_config,
         } for video in [video]],
-        "views": getViewNum(visitor, video.video_id)
+        "views": getViewNum(visitor, video.video_id),
+        "visitor_ad_config": all_ad_config,  # for testing
+        "visitor_temp_ad_config": temp_ad_config,
+        "visitor_ad_to_show": visitor.ad_to_show.ad_id,  # for testing
+        "visitor_ad_candidate": [ad.ad_id for ad in list(visitor.ads_candidate.all())]  # for testing
     })
     response.set_cookie("token", visitor.token)
     response.set_cookie("visitor_id", visitor.visitor_id)
@@ -472,27 +496,13 @@ def add_video(request):
 @require_http_methods(["POST"])
 def new_event(request):
     body_dict = json.loads(request.body.decode('utf-8'))
-    pid = body_dict.get("pid")
-
-    
     # event_id = uuid.uuid4()
     # event.event_id = event_id
     session_id = body_dict.get("session_id")
     video_info = body_dict.get("video_info")
     buffered = body_dict.get("buffered", 0)
 
-    event = Event(session_id=session_id) # 通过直接设置id来减少一次数据库查询
-    # try:
-    #     buffered = int(buffered)
-    # except:
-    #     buffered = 0
-    # # print(session_id)
-    # try:
-    #     session: Session = Session.objects.get(pk=session_id)
-    # except:
-    #     return HttpResponse("session DNE", status=402)
-
-    # event.session = session
+    event = Event(session_id=session_id)  # 通过直接设置id来减少一次数据库查询
     event.video_info = video_info
     event.label = body_dict.get("label")
     event.description = body_dict.get("description")
@@ -511,57 +521,92 @@ def new_event(request):
     event.save()
 
     # 如果这个visitor遇到了广告，对visitor的ad_to_show和ad_candidate进行更新
-    if video_info.split('_')[0] == 'ad':
-        # visitor是否存在，若存在，取出
-        if pid:
-            try:
-                visitor = Visitor.objects.get(pid=pid)
-            except:
-                return HttpResponse("visitor DNE", status=401)
-        else:
-            token = request.COOKIES.get("token")
-            visitor_id = request.COOKIES.get("visitor_id")
-            try:
-                visitor: Visitor = Visitor.objects.get(pk=visitor_id)
-            except:
-                return HttpResponse("visitor DNE", status=401)
-
-        try:
-            session: Session = Session.objects.get(pk=session_id)
-        except:
-            return HttpResponse("session DNE", status=402)
-
-        # return HttpResponse(session)
-
-        ad_id = int(video_info.split('_')[1])
-        ad: Ad = Ad.objects.get(ad_id=ad_id)
-        # 如果是新的ad,那么增加观看记录，更新用户的 ad_to_show
-        # if not ad in list(visitor.ads.all()):
-        # print("new add visited")
-        visitor.ads.add(ad)
-        session.ads.add(ad)
-        session.save()
-
-        if visitor.ads_candidate.count() > 0:
-            ad_to_show = random.sample(list(visitor.ads_candidate.all()), 1)[0]
-            visitor.ad_to_show = ad_to_show
-            visitor.save(update_fields=["ads_candidate", "ads", "ad_to_show"])
-            # 只有第一次看到广告才排除这个广告及其竞争者
-            if visitor.ads_candidate.count() > (Ad.objects.count() - 3):
-                # print("Removing first ad and its cpmpetitor")
-                visitor.ads_candidate.remove(ad_to_show)
-                # 移除竞争者
-                # print(ad.cb)
-                comp = Ad.objects.get(ad_id=ad.cb.split('_')[1])
-                visitor.ads_candidate.remove(comp)
-                visitor.save(update_fields=["ads_candidate", "ads", "ad_to_show"])
-                # print(visitor.ads_candidate.all())
-            # else do nothing
-        # Never have "else". "Count>0" is just for insurance.
-        # else:
-        #     print("playing existing add")
+    # if video_info.split('_')[0] == 'ad':
 
     return HttpResponse("event saved")
+
+
+def reportAdWatch(request):
+    # visitor是否存在，若存在，取出
+    body_dict = json.loads(request.body.decode('utf-8'))
+    pid = body_dict.get("pid")
+    session_id = body_dict.get("session_id")
+    ad_id = body_dict.get("ad_id")
+    if pid:
+        try:
+            visitor = Visitor.objects.get(pid=pid)
+        except:
+            return HttpResponse("visitor DNE", status=401)
+    else:
+        token = request.COOKIES.get("token")
+        visitor_id = request.COOKIES.get("visitor_id")
+        try:
+            visitor: Visitor = Visitor.objects.get(pk=visitor_id)
+        except:
+            return HttpResponse("visitor DNE", status=401)
+
+    try:
+        session: Session = Session.objects.get(pk=session_id)
+    except:
+        return HttpResponse("session DNE", status=402)
+
+    ad: Ad = Ad.objects.get(ad_id=ad_id)
+    # 如果是新的ad,那么增加观看记录，更新用户的 ad_to_show
+    # if not ad in list(visitor.ads.all()):
+    # print("new add visited")
+    visitor.ads.add(ad)
+    session.ads.add(ad)
+    session.save()
+
+    first_ad_view = False
+    if len(list(visitor.ads_candidate.all())) < 8:  # if ad candidate has changed because of the first ad view
+        visitor.ad_to_show = random.sample(list(visitor.ads_candidate.all()), 1)[0]
+        visitor.save()
+    else:
+        # print("Removing first ad and its competitor")
+        visitor.ads_candidate.remove(visitor.ad_to_show)
+        comp = Ad.objects.get(ad_id=ad.cb.split('_')[1])
+        visitor.ads_candidate.remove(comp)
+        visitor.ad_to_show = random.sample(list(visitor.ads_candidate.all()), 1)[0]
+        visitor.save()
+        first_ad_view = True
+
+    # if visitor.ads_candidate.count() > 0:
+    #     ad_to_show = random.sample(list(visitor.ads_candidate.all()), 1)[0]
+    #     visitor.ad_to_show = ad_to_show
+    #     visitor.save()
+    #     # 只有第一次看到广告才排除这个广告及其竞争者
+    #     if visitor.ads_candidate.count() > (Ad.objects.count() - 3):
+    #         # print("Removing first ad and its competitor")
+    #         visitor.ads_candidate.remove(ad_to_show)
+    #         # 移除竞争者
+    #         # print(ad.cb)
+    #         comp = Ad.objects.get(ad_id=ad.cb.split('_')[1])
+    #         visitor.ads_candidate.remove(comp)
+    #         visitor.save()
+            # print(visitor.ads_candidate.all())
+        # else do nothing
+    # Never have "else". "Count>0" is just for insurance.
+    # else:
+    #     print("playing existing add")
+    # response = HttpResponse("received")
+
+    response = JsonResponse({
+        "visitor_id": visitor.visitor_id,
+        "session_id": session.session_id,
+        "create_time": visitor.created_time,
+        "visitor_ad_config": getConfig(visitor, "ad_config"),
+        "visitor_ad_to_show": visitor.ad_to_show.ad_id,
+        "visitor_ad_candidate": [ad.ad_id for ad in list(visitor.ads_candidate.all())],
+        # "visitor_cookie_ad:": body_dict.get("focal_ad")
+    })
+
+    if first_ad_view:
+        response.set_cookie("focal_ad", ad_id)
+        return response
+    else:
+        return response
+
 
 
 @require_http_methods(["GET", "POST"])
